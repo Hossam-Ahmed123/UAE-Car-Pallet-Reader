@@ -41,4 +41,22 @@ class PlateNumberNormalizerTest {
         assertThat(normalized.number()).isEqualTo("12345");
         assertThat(normalized.characters()).isNull();
     }
+
+    @Test
+    void shouldCollapseSingleDigitSequencesIntoNumber() {
+        PlateNumberNormalizer.NormalizedPlate normalized = PlateNumberNormalizer.normalize("Sharjah B 1 2 3 4");
+        assertThat(normalized.city()).isEqualTo("Sharjah");
+        assertThat(normalized.normalizedPlate()).isEqualTo("B 1234");
+        assertThat(normalized.characters()).isEqualTo("B");
+        assertThat(normalized.number()).isEqualTo("1234");
+    }
+
+    @Test
+    void shouldReturnNullWhenOnlyNoisySingleDigitTokensDetected() {
+        PlateNumberNormalizer.NormalizedPlate normalized = PlateNumberNormalizer.normalize("foo 1 a 2 b 3 c 4 d 5");
+        assertThat(normalized.normalizedPlate()).isNull();
+        assertThat(normalized.number()).isNull();
+        assertThat(normalized.characters()).isNull();
+        assertThat(normalized.city()).isNull();
+    }
 }
