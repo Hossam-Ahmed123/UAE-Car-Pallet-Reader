@@ -20,7 +20,9 @@ A Spring Boot 3 (Java 21) REST API for extracting and normalizing UAE car plate 
 
 ### Configuration
 
-By default the application expects the Tesseract runtime to be discoverable on the system path. If you installed the trained data files in a non-default location, expose it via the `TESSDATA_PREFIX` environment variable or provide `tesseract.datapath` as a Spring property:
+At startup the application attempts to locate the tessdata directory by checking the `tesseract.datapath` property, the `TESSDATA_PREFIX` environment (or system) property, and a few common installation directories for Linux and Windows. If none of these contain the requested language file the application will fail fast with an explicit error message instead of surfacing a low level "Invalid memory access" at request time.
+
+If you installed the trained data files in a non-default location, expose it via the `TESSDATA_PREFIX` environment variable or provide `tesseract.datapath` as a Spring property:
 
 ```shell
 java -Dtesseract.datapath=/usr/share/tesseract-ocr/5/tessdata -jar target/uae-car-pallet-reader-0.0.1-SNAPSHOT.jar
