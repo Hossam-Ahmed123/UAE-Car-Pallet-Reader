@@ -59,4 +59,28 @@ class PlateNumberNormalizerTest {
         assertThat(normalized.characters()).isNull();
         assertThat(normalized.city()).isNull();
     }
+
+    @Test
+    void shouldPreferPlausibleTokenWindowAroundDigits() {
+        String rawText = """
+                I ie Ve
+                i ij ' ree
+                ~ a —_— a
+                SS | Se
+                a (4 a
+                Soe Sa = a  .
+                a
+                eee 19949 BY
+                a
+                oe = oe
+                TEES aL nn
+                " ROR! | ESOS rs og
+                """;
+
+        PlateNumberNormalizer.NormalizedPlate normalized = PlateNumberNormalizer.normalize(rawText);
+
+        assertThat(normalized.normalizedPlate()).isEqualTo("BY 19949");
+        assertThat(normalized.characters()).isEqualTo("BY");
+        assertThat(normalized.number()).isEqualTo("19949");
+    }
 }
