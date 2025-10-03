@@ -6,9 +6,18 @@ A Spring Boot 3 (Java 21) REST API for extracting and normalizing UAE car plate 
 
 - Accepts multiple images in a single multipart/form-data request.
 - Uses [Tess4J](https://tess4j.sourceforge.net/) as a Java wrapper around the Tesseract OCR engine.
-- Applies lightweight grayscale and contrast preprocessing before running OCR.
+- Applies lightweight grayscale, sharpening, and adaptive-style thresholding before running OCR.
 - Normalizes the OCR output by removing noise, duplicates, and Dubai-specific prefixes.
 - Provides per-image extraction results including the raw OCR text and the cleaned plate number.
+
+## Processing pipeline
+
+1. **Plate detection** – the default implementation treats the entire image as a candidate plate. Swap the `PlateDetector` bean with a YOLO-based implementation to take advantage of proper localization.
+2. **ROI cropping** – each detected bounding box is cropped, ensuring only the plate region reaches OCR.
+3. **Image preprocessing** – grayscale conversion, contrast stretching, sharpening, and binary thresholding improve character visibility without requiring native OpenCV bindings.
+4. **OCR & post-processing** – Tesseract extracts raw text which is then normalised using regex and emirate-aware heuristics to produce the final plate, city, letters, and digits.
+
+The service scores multiple candidates and returns the most plausible match, mirroring the recommended YOLO → ROI → preprocessing → Tesseract → normalization workflow.
 
 ## Getting Started
 
