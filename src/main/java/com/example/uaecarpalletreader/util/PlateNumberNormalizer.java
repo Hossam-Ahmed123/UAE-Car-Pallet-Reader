@@ -77,12 +77,21 @@ public final class PlateNumberNormalizer {
             return new NormalizedPlate(null, city, null, null);
         }
 
-        String normalized = String.join(" ", relevantTokens);
-        String characters = joinTokens(relevantTokens.stream()
-                .filter(token -> token.chars().allMatch(Character::isLetter))
+        List<String> prioritizedTokens = selectBestTokens(relevantTokens);
+        if (prioritizedTokens.isEmpty()) {
+            return new NormalizedPlate(null, city, null, null);
+        }
+
+        if (shouldReorderLettersFirst(prioritizedTokens)) {
+            prioritizedTokens = reorderLettersFirst(prioritizedTokens);
+        }
+
+        String normalized = String.join(" ", prioritizedTokens);
+        String characters = joinTokens(prioritizedTokens.stream()
+                .filter(PlateNumberNormalizer::isLetterToken)
                 .toList());
 
-        String number = joinTokens(relevantTokens.stream()
+        String number = joinTokens(prioritizedTokens.stream()
                 .filter(token -> token.chars().allMatch(Character::isDigit))
                 .toList());
 
@@ -215,5 +224,109 @@ public final class PlateNumberNormalizer {
     }
 
     private record EmirateMatch(String emirate, int startIndex, int length) {
+    }
+
+    private static List<String> selectBestTokens(List<String> tokens) {
+        if (tokens.isEmpty()) {
+            return List.of();
+        }
+
+        List<String> best = List.of();
+        int bestScore = Integer.MIN_VALUE;
+
+        for (int start = 0; start < tokens.size(); start++) {
+            for (int end = start; end < tokens.size(); end++) {
+                List<String> candidate = tokens.subList(start, end + 1);
+                int score = scoreCandidate(candidate);
+                if (score == Integer.MIN_VALUE) {
+                    continue;
+                }
+
+                if (score > bestScore || (score == bestScore && candidate.size() < best.size())) {
+                    bestScore = score;
+                    best = new ArrayList<>(candidate);
+                }
+            }
+        }
+
+        return best;
+    }
+
+    private static int scoreCandidate(List<String> candidate) {
+        boolean hasDigit = false;
+        int score = 0;
+        String previousToken = null;
+
+        for (String token : candidate) {
+            boolean containsDigit = token.chars().anyMatch(Character::isDigit);
+            boolean containsLetter = token.chars().anyMatch(Character::isLetter);
+
+            if (containsDigit) {
+                hasDigit = true;
+                int digitCount = (int) token.chars().filter(Character::isDigit).count();
+                score += digitCount * 5;
+                if (containsLetter) {
+                    score += 2;
+                }
+            }
+
+            if (containsLetter && !containsDigit) {
+                score += scoreLetterToken(token);
+            }
+
+            if (previousToken != null && previousToken.equals(token)) {
+                score -= 2;
+            }
+            previousToken = token;
+        }
+
+        if (!hasDigit) {
+            return Integer.MIN_VALUE;
+        }
+
+        score -= candidate.size();
+        return score;
+    }
+
+    private static int scoreLetterToken(String token) {
+        int length = token.length();
+        if (length <= 2) {
+            return 6 - length; // favour one or two letter sequences
+        }
+        if (length == 3) {
+            return 1;
+        }
+        return -length;
+    }
+
+    private static boolean shouldReorderLettersFirst(List<String> tokens) {
+        if (tokens.isEmpty()) {
+            return false;
+        }
+        boolean firstIsNumber = tokens.get(0).chars().allMatch(Character::isDigit);
+        if (!firstIsNumber) {
+            return false;
+        }
+        return tokens.stream().anyMatch(PlateNumberNormalizer::isLetterToken);
+    }
+
+    private static List<String> reorderLettersFirst(List<String> tokens) {
+        List<String> letters = new ArrayList<>();
+        List<String> others = new ArrayList<>();
+        for (String token : tokens) {
+            if (isLetterToken(token)) {
+                letters.add(token);
+            } else {
+                others.add(token);
+            }
+        }
+        List<String> reordered = new ArrayList<>(letters.size() + others.size());
+        reordered.addAll(letters);
+        reordered.addAll(others);
+        return reordered;
+    }
+
+    private static boolean isLetterToken(String token) {
+        return !token.isEmpty() && token.chars().allMatch(Character::isLetter);
     }
 }
