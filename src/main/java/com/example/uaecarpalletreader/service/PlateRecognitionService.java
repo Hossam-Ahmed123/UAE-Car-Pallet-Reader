@@ -55,6 +55,15 @@ public class PlateRecognitionService {
         } catch (TesseractException e) {
             log.error("Tesseract OCR failed for {}", fileName, e);
             throw new IllegalStateException("Failed to extract text from " + fileName, e);
+        } catch (Error e) {
+            if ("Invalid memory access".equalsIgnoreCase(e.getMessage())) {
+                String message = String.format(
+                        "Tesseract native layer failed while processing %s. Verify that the tessdata directory contains %s.traineddata.",
+                        fileName, tesseract.getLanguage());
+                log.error(message, e);
+                throw new IllegalStateException(message, e);
+            }
+            throw e;
         }
     }
 
