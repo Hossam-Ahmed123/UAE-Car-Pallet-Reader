@@ -60,12 +60,18 @@ Sample response:
     {
       "fileName": "maxima.jpg",
       "rawText": "F\n97344",
-      "normalizedPlate": "F 97344"
+      "normalizedPlate": "F 97344",
+      "city": null,
+      "characters": "F",
+      "number": "97344"
     },
     {
       "fileName": "lexus.jpg",
       "rawText": "Dubai\nBB 19849",
-      "normalizedPlate": "BB 19849"
+      "normalizedPlate": "BB 19849",
+      "city": "Dubai",
+      "characters": "BB",
+      "number": "19849"
     }
   ]
 }

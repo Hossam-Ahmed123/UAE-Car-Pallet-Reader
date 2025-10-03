@@ -8,18 +8,37 @@ class PlateNumberNormalizerTest {
 
     @Test
     void shouldNormalizePlateWithDubaiPrefix() {
-        String normalized = PlateNumberNormalizer.normalize("Dubai bb 19849\n");
-        assertThat(normalized).isEqualTo("BB 19849");
+        PlateNumberNormalizer.NormalizedPlate normalized = PlateNumberNormalizer.normalize("Dubai bb 19849\n");
+        assertThat(normalized.normalizedPlate()).isEqualTo("BB 19849");
+        assertThat(normalized.city()).isEqualTo("Dubai");
+        assertThat(normalized.characters()).isEqualTo("BB");
+        assertThat(normalized.number()).isEqualTo("19849");
     }
 
     @Test
     void shouldNormalizeWithSpecialCharacters() {
-        String normalized = PlateNumberNormalizer.normalize("F-97344");
-        assertThat(normalized).isEqualTo("F 97344");
+        PlateNumberNormalizer.NormalizedPlate normalized = PlateNumberNormalizer.normalize("F-97344");
+        assertThat(normalized.normalizedPlate()).isEqualTo("F 97344");
+        assertThat(normalized.city()).isNull();
+        assertThat(normalized.characters()).isEqualTo("F");
+        assertThat(normalized.number()).isEqualTo("97344");
     }
 
     @Test
     void shouldReturnNullForEmpty() {
-        assertThat(PlateNumberNormalizer.normalize("   ")).isNull();
+        PlateNumberNormalizer.NormalizedPlate normalized = PlateNumberNormalizer.normalize("   ");
+        assertThat(normalized.normalizedPlate()).isNull();
+        assertThat(normalized.city()).isNull();
+        assertThat(normalized.characters()).isNull();
+        assertThat(normalized.number()).isNull();
+    }
+
+    @Test
+    void shouldExtractAjmanCityFromAbbreviation() {
+        PlateNumberNormalizer.NormalizedPlate normalized = PlateNumberNormalizer.normalize("Ajm 12345");
+        assertThat(normalized.city()).isEqualTo("Ajman");
+        assertThat(normalized.normalizedPlate()).isEqualTo("12345");
+        assertThat(normalized.number()).isEqualTo("12345");
+        assertThat(normalized.characters()).isNull();
     }
 }
