@@ -70,12 +70,19 @@ public final class PlateNumberNormalizer {
             return new NormalizedPlate(null, city, null, null);
         }
 
-        String normalized = String.join(" ", filteredTokens);
-        String characters = joinTokens(filteredTokens.stream()
+        List<String> compactTokens = collapseSingleDigitSequences(filteredTokens);
+
+        List<String> relevantTokens = extractRelevantWindow(compactTokens);
+        if (relevantTokens.isEmpty()) {
+            return new NormalizedPlate(null, city, null, null);
+        }
+
+        String normalized = String.join(" ", relevantTokens);
+        String characters = joinTokens(relevantTokens.stream()
                 .filter(token -> token.chars().allMatch(Character::isLetter))
                 .toList());
 
-        String number = joinTokens(filteredTokens.stream()
+        String number = joinTokens(relevantTokens.stream()
                 .filter(token -> token.chars().allMatch(Character::isDigit))
                 .toList());
 
@@ -117,6 +124,88 @@ public final class PlateNumberNormalizer {
             return "";
         }
         return String.join(" ", tokens);
+    }
+
+    private static List<String> collapseSingleDigitSequences(List<String> tokens) {
+        List<String> result = new ArrayList<>();
+        StringBuilder digitBuffer = new StringBuilder();
+
+        for (String token : tokens) {
+            if (token.chars().allMatch(Character::isDigit)) {
+                if (token.length() == 1) {
+                    digitBuffer.append(token);
+                    continue;
+                }
+                if (!digitBuffer.isEmpty()) {
+                    result.add(digitBuffer.toString());
+                    digitBuffer.setLength(0);
+                }
+                result.add(token);
+            } else {
+                if (!digitBuffer.isEmpty()) {
+                    result.add(digitBuffer.toString());
+                    digitBuffer.setLength(0);
+                }
+                result.add(token);
+            }
+        }
+
+        if (!digitBuffer.isEmpty()) {
+            result.add(digitBuffer.toString());
+        }
+
+        return result;
+    }
+
+    private static List<String> extractRelevantWindow(List<String> tokens) {
+        if (tokens.isEmpty()) {
+            return List.of();
+        }
+
+        int firstIndex = -1;
+        int lastIndex = -1;
+        boolean hasDigit = false;
+        int singleDigitTokenCount = 0;
+
+        for (int i = 0; i < tokens.size(); i++) {
+            String token = tokens.get(i);
+            boolean containsDigit = token.chars().anyMatch(Character::isDigit);
+            if (containsDigit) {
+                hasDigit = true;
+                if (token.chars().allMatch(Character::isDigit) && token.length() == 1) {
+                    singleDigitTokenCount++;
+                }
+            }
+
+            if (isSignificantDigitToken(token)) {
+                if (firstIndex == -1) {
+                    firstIndex = i;
+                }
+                lastIndex = i;
+            }
+        }
+
+        if (firstIndex == -1) {
+            if (hasDigit && singleDigitTokenCount >= 4) {
+                return List.of();
+            }
+            return tokens;
+        }
+
+        int start = Math.max(0, firstIndex - 3);
+        int end = Math.min(tokens.size() - 1, lastIndex + 3);
+
+        return new ArrayList<>(tokens.subList(start, end + 1));
+    }
+
+    private static boolean isSignificantDigitToken(String token) {
+        int digitCount = 0;
+        for (int i = 0; i < token.length(); i++) {
+            if (Character.isDigit(token.charAt(i))) {
+                digitCount++;
+            }
+        }
+        return digitCount >= 2;
     }
 
     private record EmiratePattern(List<String> tokens, String displayName) {
