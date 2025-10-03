@@ -1,6 +1,6 @@
 # UAE Car Plate Reader
 
-A Spring Boot 3 (Java 17) REST API for extracting and normalizing UAE car plate numbers from uploaded images.
+A Spring Boot 3 (Java 21) REST API for extracting and normalizing UAE car plate numbers from uploaded images. The service now includes an OpenAPI 3 specification with an interactive Swagger UI for easy exploration.
 
 ## Features
 
@@ -14,7 +14,7 @@ A Spring Boot 3 (Java 17) REST API for extracting and normalizing UAE car plate 
 
 ### Prerequisites
 
-- Java 17+
+- Java 21+
 - Maven 3.8+
 - [Tesseract OCR](https://github.com/tesseract-ocr/tesseract) runtime with the `eng` (English) language data installed. On macOS or Linux you can typically install this via your package manager. Make note of the tessdata directory path.
 
@@ -33,7 +33,7 @@ mvn clean package
 java -jar target/uae-car-pallet-reader-0.0.1-SNAPSHOT.jar
 ```
 
-The API will be available at `http://localhost:8080`.
+The API will be available at `http://localhost:8080`. The generated Swagger UI is served at `http://localhost:8080/swagger-ui.html` and the OpenAPI JSON is available at `http://localhost:8080/v3/api-docs`.
 
 ### API Usage
 
