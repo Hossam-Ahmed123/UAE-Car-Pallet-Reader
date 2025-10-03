@@ -12,7 +12,7 @@ A Spring Boot 3 (Java 21) REST API for extracting and normalizing UAE car plate 
 
 ## Processing pipeline
 
-1. **Plate detection** – the default implementation treats the entire image as a candidate plate. Swap the `PlateDetector` bean with a YOLO-based implementation to take advantage of proper localization.
+1. **Plate detection** – the default implementation treats the entire image as a candidate plate. Swap the `PlateDetector` bean with a YOLO-based implementation to take advantage of proper localization. You can load YOLO weights either through [Deeplearning4j](https://deeplearning4j.konduit.ai/) (convert PyTorch → ONNX → DL4J) or via the OpenCV Java bindings that accept ONNX/Darknet checkpoints.
 2. **ROI cropping** – each detected bounding box is cropped, ensuring only the plate region reaches OCR.
 3. **Image preprocessing** – grayscale conversion, contrast stretching, sharpening, and binary thresholding improve character visibility without requiring native OpenCV bindings.
 4. **OCR & post-processing** – Tesseract extracts raw text which is then normalised using regex and emirate-aware heuristics to produce the final plate, city, letters, and digits.

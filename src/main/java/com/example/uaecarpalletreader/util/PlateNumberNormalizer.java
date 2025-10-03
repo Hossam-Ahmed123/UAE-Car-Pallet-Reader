@@ -254,8 +254,11 @@ public final class PlateNumberNormalizer {
 
     private static int scoreCandidate(List<String> candidate) {
         boolean hasDigit = false;
+        boolean digitSeen = false;
         int score = 0;
         String previousToken = null;
+        int lettersBeforeDigits = 0;
+        int lettersAfterDigits = 0;
 
         for (String token : candidate) {
             boolean containsDigit = token.chars().anyMatch(Character::isDigit);
@@ -268,14 +271,21 @@ public final class PlateNumberNormalizer {
                 if (containsLetter) {
                     score += 2;
                 }
+                digitSeen = true;
             }
 
             if (containsLetter && !containsDigit) {
-                score += scoreLetterToken(token);
+                if (digitSeen) {
+                    score += scoreLetterTokenAfterDigits(token, lettersAfterDigits);
+                    lettersAfterDigits++;
+                } else {
+                    score += scoreLetterTokenBeforeDigits(token, lettersBeforeDigits);
+                    lettersBeforeDigits++;
+                }
             }
 
             if (previousToken != null && previousToken.equals(token)) {
-                score -= 2;
+                score -= 3;
             }
             previousToken = token;
         }
@@ -284,19 +294,64 @@ public final class PlateNumberNormalizer {
             return Integer.MIN_VALUE;
         }
 
-        score -= candidate.size();
+        score -= candidate.size() * 2;
         return score;
     }
 
-    private static int scoreLetterToken(String token) {
+    private static int scoreLetterTokenBeforeDigits(String token, int index) {
         int length = token.length();
-        if (length <= 2) {
-            return 6 - length; // favour one or two letter sequences
+        int baseScore;
+        if (length == 1) {
+            baseScore = 4;
+        } else if (length == 2) {
+            baseScore = 6;
+        } else if (length == 3) {
+            baseScore = 3;
+        } else {
+            baseScore = -length;
         }
-        if (length == 3) {
-            return 1;
+
+        if (length > 1 && isSingleRepeatedCharacter(token)) {
+            baseScore -= 3;
         }
-        return -length;
+
+        if (index > 0) {
+            baseScore -= index * 3;
+        }
+        return baseScore;
+    }
+
+    private static int scoreLetterTokenAfterDigits(String token, int index) {
+        int length = token.length();
+        int baseScore;
+        if (length == 1) {
+            baseScore = -5;
+        } else if (length == 2) {
+            baseScore = 3;
+        } else if (length == 3) {
+            baseScore = 1;
+        } else {
+            baseScore = -length;
+        }
+
+        if (length > 1 && isSingleRepeatedCharacter(token)) {
+            baseScore -= 3;
+        }
+
+        if (index > 0) {
+            baseScore -= index * 4;
+        }
+        return baseScore;
+    }
+
+    private static boolean isSingleRepeatedCharacter(String token) {
+        char first = token.charAt(0);
+        for (int i = 1; i < token.length(); i++) {
+            if (token.charAt(i) != first) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static boolean shouldReorderLettersFirst(List<String> tokens) {
