@@ -2,6 +2,7 @@ package com.example.uaecarpalletreader.service;
 
 import com.example.uaecarpalletreader.model.PlateExtractionResult;
 import com.example.uaecarpalletreader.util.PlateNumberNormalizer;
+import com.example.uaecarpalletreader.util.PlateNumberNormalizer.NormalizedPlate;
 import jakarta.annotation.PostConstruct;
 import net.sourceforge.tess4j.Tesseract;
 import net.sourceforge.tess4j.TesseractException;
@@ -51,8 +52,14 @@ public class PlateRecognitionService {
 
             BufferedImage preprocessed = preprocess(bufferedImage);
             String rawText = tesseract.doOCR(preprocessed);
-            String normalized = PlateNumberNormalizer.normalize(rawText);
-            return new PlateExtractionResult(fileName, rawText != null ? rawText.trim() : null, normalized);
+            NormalizedPlate normalized = PlateNumberNormalizer.normalize(rawText);
+            return new PlateExtractionResult(
+                    fileName,
+                    rawText != null ? rawText.trim() : null,
+                    normalized.normalizedPlate(),
+                    normalized.city(),
+                    normalized.letters(),
+                    normalized.number());
         } catch (IOException e) {
             log.error("Failed to read image {}", fileName, e);
             throw new IllegalStateException("Failed to read image " + fileName, e);
