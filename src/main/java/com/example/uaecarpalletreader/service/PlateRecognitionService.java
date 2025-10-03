@@ -7,6 +7,7 @@ import net.sourceforge.tess4j.Tesseract;
 import net.sourceforge.tess4j.TesseractException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -23,14 +24,17 @@ public class PlateRecognitionService {
     private static final Logger log = LoggerFactory.getLogger(PlateRecognitionService.class);
 
     private final Tesseract tesseract;
+    private final String language;
 
-    public PlateRecognitionService(Tesseract tesseract) {
+    public PlateRecognitionService(Tesseract tesseract,
+                                   @Value("${tesseract.language:eng}") String language) {
         this.tesseract = tesseract;
+        this.language = language;
     }
 
     @PostConstruct
     void logTesseractInfo() {
-        log.info("Tesseract OCR initialized with language: {}", tesseract.getLanguage());
+        log.info("Tesseract OCR initialized with language: {}", language);
     }
 
     public PlateExtractionResult extractPlate(MultipartFile file) {
@@ -59,7 +63,7 @@ public class PlateRecognitionService {
             if ("Invalid memory access".equalsIgnoreCase(e.getMessage())) {
                 String message = String.format(
                         "Tesseract native layer failed while processing %s. Verify that the tessdata directory contains %s.traineddata.",
-                        fileName, tesseract.getLanguage());
+                        fileName, language);
                 log.error(message, e);
                 throw new IllegalStateException(message, e);
             }
