@@ -1,0 +1,17 @@
+server:
+  port: 9090
+spring:
+  application:
+    name: uae-car-pallet-reader
+logging:
+  level:
+    root: INFO
+    com.example.uaecarpalletreader: DEBUG
+anpr:
+  enabled: true
+  modelPath: ./models/yolov8n_plate.onnx
+  inputSize: 640
+  confThreshold: 0.25
+  nmsThreshold: 0.45
+  tessdataPath: "C:/Program Files/Tesseract-OCR/tessdata"
+  languages: "ara+eng"
