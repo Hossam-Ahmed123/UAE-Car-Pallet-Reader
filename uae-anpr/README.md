@@ -5,7 +5,8 @@ No GPU, no deep learning detector.
 
 ## Run (Dev)
 1. Install JDK 21 + Maven.
-2. Download Tesseract languages `eng.traineddata` and `ara.traineddata` and place them under `tessdata/`.
+2. Download Tesseract languages `eng.traineddata` and `ara.traineddata` and place them under `tessdata/` (or point the
+   `TESSDATA_PREFIX` environment variable at an existing tessdata directory).
 3. Build & run:
 ```bash
 mvn -q -DskipTests package
