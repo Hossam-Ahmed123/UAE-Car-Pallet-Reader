@@ -14,6 +14,25 @@ uae-anpr/
 
 Place your raw plate images inside `training/data/images`. The `utils_autosplit.py` helper will move them into `train/` and `val/` splits (85/15) the first time you run it. Labels should be supplied in YOLO format under `training/data/labels/train` and `training/data/labels/val`.
 
+If you need to bootstrap annotations, the repository ships with `training/auto_label.py`, which wraps a pre-trained licence plate detector (`keremberke/yolov8n-license-plate`). Once your images have been split, run:
+
+```bash
+cd training
+python auto_label.py --images data/images --labels data/labels --class-id 0
+```
+
+The script mirrors the folder structure under `data/images`, writing YOLO text files to the matching location in `data/labels`. Existing label files are preserved when `--skip-existing` is supplied, and you can customise the detector checkpoint via `--model`.
+
+For challenging lighting conditions you can stack lightweight pre-processing steps (CLAHE, gamma correction, unsharp masking) before the detector runs:
+
+```bash
+python auto_label.py \
+  --images data/images --labels data/labels \
+  --enhance clahe gamma sharpen --gamma-value 1.3 --sharpen-strength 0.4
+```
+
+Enhancements are applied in-memory only—the script will still emit standard YOLO text files under `training/data/labels/**/*.txt` without producing any additional binary artefacts.
+
 ### Environment setup
 
 #### Windows (PowerShell)
