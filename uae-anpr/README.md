@@ -15,6 +15,7 @@ java -jar target/uae-ocr-anpr-0.0.1-SNAPSHOT.jar
 ```bash
 curl -X POST http://localhost:9090/api/v1/plates/recognize   -F "image=@/path/to/plate.jpg"
 ```
+5. Explore and test with the interactive Swagger UI at [http://localhost:9090/swagger-ui/index.html](http://localhost:9090/swagger-ui/index.html).
 
 ## API
 - `POST /api/v1/plates/recognize` (multipart)
@@ -26,6 +27,11 @@ curl -X POST http://localhost:9090/api/v1/plates/recognize   -F "image=@/path/to
   ]
 }
 ```
+
+## Features
+- Automatic OpenAPI/Swagger documentation with a ready to use UI.
+- Improved plate detection heuristics that work on cropped plates and wider vehicle photos.
+- Dynamic splitting of letter/digit regions to better support different emirate layouts.
 
 ## Notes
 - The service attempts to auto-detect a likely plate rectangle via contour heuristics. If none is found, it OCRs the whole image as a fallback.
