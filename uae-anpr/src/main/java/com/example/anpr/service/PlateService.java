@@ -6,7 +6,9 @@ import com.example.anpr.util.EmirateParser;
 import com.example.anpr.util.ImageUtils;
 import org.bytedeco.javacpp.indexer.UByteRawIndexer;
 import org.bytedeco.opencv.opencv_core.Mat;
+import org.bytedeco.opencv.opencv_core.MatVector;
 import org.bytedeco.opencv.opencv_core.Rect;
+import org.bytedeco.opencv.opencv_core.Size;
 import org.bytedeco.opencv.global.opencv_core;
 import org.bytedeco.opencv.global.opencv_imgproc;
 import org.springframework.stereotype.Service;
@@ -77,6 +79,9 @@ public class PlateService {
         opencv_imgproc.dilate(leftBin, leftThick, kernel);
         Mat leftThin = new Mat();
         opencv_imgproc.erode(leftBin, leftThin, kernel);
+        Mat letterCrop = cropLetterRegion(leftBin);
+        Mat letterCropInv = new Mat();
+        opencv_core.bitwise_not(letterCrop, letterCropInv);
 
         Mat rightGray = ImageUtils.toGray(right);
         Mat rightBin = ImageUtils.enhanceForOCR(rightGray);
@@ -92,13 +97,16 @@ public class PlateService {
         String emirA = ocr.ocrEmirate(ImageUtils.toBufferedImage(leftBin));
         String emirB = ocr.ocrEmirate(ImageUtils.toBufferedImage(leftInv));
         String emirC = ocr.ocrEmirate(ImageUtils.toBufferedImage(leftThick));
-        String emirateRaw = String.join(" | ", Arrays.asList(emirA, emirB, emirC));
+        String emirD = ocr.ocrEmirate(ImageUtils.toBufferedImage(ImageUtils.enhanceForOCR(leftGray)));
+        String emirateRaw = String.join(" | ", Arrays.asList(emirA, emirB, emirC, emirD));
 
         String L1 = normalizeLetter(ocr.ocrLetters(ImageUtils.toBufferedImage(leftBin)));
         String L2 = normalizeLetter(ocr.ocrLetters(ImageUtils.toBufferedImage(leftInv)));
         String L3 = normalizeLetter(ocr.ocrLetters(ImageUtils.toBufferedImage(leftThick)));
         String L4 = normalizeLetter(ocr.ocrLetters(ImageUtils.toBufferedImage(leftThin)));
-        String letter = majorityLetter(L1, L2, L3, L4);
+        String L5 = normalizeLetter(ocr.ocrLetters(ImageUtils.toBufferedImage(letterCrop)));
+        String L6 = normalizeLetter(ocr.ocrLetters(ImageUtils.toBufferedImage(letterCropInv)));
+        String letter = majorityLetter(L1, L2, L3, L4, L5, L6);
 
         EmirateParser.Parsed parsed = EmirateParser.parse(emirateRaw + " " + digitsRaw + " " + letter);
         if ("Unknown".equals(parsed.emirate)) {
@@ -118,7 +126,7 @@ public class PlateService {
                 + " | CUT=" + leftW + "/" + W
                 + " | EMIRATE_RAW=" + emirateRaw.replace('\n', ' ').trim()
                 + " | DIGITS_RAW=" + digitsRaw.trim()
-                + " | LETTERS_TRIED=" + String.join(",", Arrays.asList(L1, L2, L3, L4));
+                + " | LETTERS_TRIED=" + String.join(",", Arrays.asList(L1, L2, L3, L4, L5, L6));
 
         return new PlateResult(parsed.number, parsed.letter, parsed.emirate, diagnostics);
     }
@@ -211,8 +219,15 @@ public class PlateService {
 
     private static String normalizeLetter(String s) {
         if (s == null) return "";
-        s = s.replaceAll("[^A-Z]","").toUpperCase();
-        if (s.length() > 2) s = s.substring(0,2);
+        s = s.toUpperCase();
+        s = s.replace('0', 'O')
+                .replace('1', 'I')
+                .replace('2', 'Z')
+                .replace('5', 'S')
+                .replace('6', 'G')
+                .replace('8', 'B');
+        s = s.replaceAll("[^A-Z]", "");
+        if (s.length() > 2) s = s.substring(0, 2);
         return s;
     }
 
@@ -224,5 +239,54 @@ public class PlateService {
         }
         if (cnt.isEmpty()) return "";
         return cnt.entrySet().stream().max(Map.Entry.comparingByValue()).get().getKey();
+    }
+
+    private static Mat cropLetterRegion(Mat binary) {
+        if (binary == null || binary.empty()) {
+            return binary == null ? new Mat() : binary.clone();
+        }
+        Mat work = binary.clone();
+        Mat kernel = opencv_imgproc.getStructuringElement(opencv_imgproc.MORPH_RECT, new Size(3, 3));
+        opencv_imgproc.morphologyEx(work, work, opencv_imgproc.MORPH_CLOSE, kernel);
+        MatVector contours = new MatVector();
+        Mat hierarchy = new Mat();
+        opencv_imgproc.findContours(work.clone(), contours, hierarchy,
+                opencv_imgproc.RETR_EXTERNAL, opencv_imgproc.CHAIN_APPROX_SIMPLE);
+
+        Rect best = null;
+        double bestScore = 0.0;
+        int H = binary.rows();
+        int W = binary.cols();
+        for (long i = 0; i < contours.size(); i++) {
+            Rect rect = opencv_imgproc.boundingRect(contours.get(i));
+            if (rect == null || rect.width() <= 0 || rect.height() <= 0) {
+                continue;
+            }
+            double hRatio = rect.height() / (double) H;
+            double wRatio = rect.width() / (double) Math.max(W, 1);
+            if (hRatio < 0.25 || hRatio > 0.95) {
+                continue;
+            }
+            if (wRatio < 0.12 || wRatio > 0.8) {
+                continue;
+            }
+            double aspect = rect.height() / (double) Math.max(rect.width(), 1);
+            if (aspect < 0.9 || aspect > 4.8) {
+                continue;
+            }
+            double verticalCenter = (rect.y() + rect.height() / 2.0) / Math.max(H, 1);
+            double verticalScore = 1.0 - Math.min(Math.abs(verticalCenter - 0.65), 1.0);
+            double aspectScore = 1.0 - Math.min(Math.abs(aspect - 1.8) / 1.8, 0.9);
+            double score = hRatio * 0.6 + verticalScore * 0.2 + aspectScore * 0.2;
+            if (score > bestScore) {
+                bestScore = score;
+                best = rect;
+            }
+        }
+
+        if (best != null) {
+            return new Mat(binary, best).clone();
+        }
+        return binary.clone();
     }
 }

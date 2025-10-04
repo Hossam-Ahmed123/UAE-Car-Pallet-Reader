@@ -6,19 +6,27 @@ public class EmirateParser {
     private static final Map<String, String> EMIRATES = Map.ofEntries(
             Map.entry("DUBAI", "Dubai"),
             Map.entry("دبي", "Dubai"),
+            Map.entry("DXB", "Dubai"),
             Map.entry("ABU DHABI", "Abu Dhabi"),
+            Map.entry("ABUDHABI", "Abu Dhabi"),
             Map.entry("ابوظبي", "Abu Dhabi"),
             Map.entry("أبوظبي", "Abu Dhabi"),
+            Map.entry("AUH", "Abu Dhabi"),
             Map.entry("SHARJAH", "Sharjah"),
             Map.entry("الشارقة", "Sharjah"),
+            Map.entry("SHJ", "Sharjah"),
             Map.entry("AJMAN", "Ajman"),
             Map.entry("عجمان", "Ajman"),
+            Map.entry("AJMN", "Ajman"),
             Map.entry("RAK", "Ras Al Khaimah"),
             Map.entry("رأس الخيمة", "Ras Al Khaimah"),
             Map.entry("FUJAIRAH", "Fujairah"),
             Map.entry("الفجيرة", "Fujairah"),
+            Map.entry("FJR", "Fujairah"),
             Map.entry("UMM AL QUWAIN", "Umm Al Quwain"),
-            Map.entry("ام القيوين", "Umm Al Quwain")
+            Map.entry("UMM ALQUWAIN", "Umm Al Quwain"),
+            Map.entry("ام القيوين", "Umm Al Quwain"),
+            Map.entry("UAQ", "Umm Al Quwain")
     );
 
     public static class Parsed {
