@@ -1,15 +1,22 @@
 package com.example.anpr.service;
 
 import com.example.anpr.util.ImageUtils;
+import java.awt.image.BufferedImage;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import net.sourceforge.tess4j.TessAPI;
 import net.sourceforge.tess4j.Tesseract;
 import net.sourceforge.tess4j.TesseractException;
-import net.sourceforge.tess4j.TessAPI;
-import java.awt.image.BufferedImage;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 @Service
 public class OcrService {
+
+    private static final Logger log = LoggerFactory.getLogger(OcrService.class);
 
     private final Tesseract tess;
 
@@ -17,7 +24,12 @@ public class OcrService {
                       @Value("${ocr.lang:eng+ara}") String lang,
                       @Value("${ocr.whitelist}") String whitelist) {
         this.tess = new Tesseract();
-        this.tess.setDatapath(tessdataPath);
+        Path tessdataDir = Paths.get(tessdataPath).toAbsolutePath().normalize();
+        if (!Files.isDirectory(tessdataDir)) {
+            throw new IllegalArgumentException("Invalid tessdata directory: " + tessdataDir);
+        }
+        this.tess.setDatapath(tessdataDir.toString());
+        log.info("Initialized Tesseract with tessdata directory: {}", tessdataDir);
         this.tess.setLanguage(lang);
         this.tess.setTessVariable("user_defined_dpi", "300");
         if (whitelist != null && !whitelist.isBlank()) {
