@@ -16,15 +16,18 @@ except ImportError:  # pragma: no cover - OpenCV should be available via require
 from ultralytics import YOLO
 
 
-def ensure_huggingface_available(model_name: str) -> None:
-    """Raise a helpful error when a Hugging Face model cannot be resolved."""
+def normalise_model_name(model_name: str) -> str:
+    """Ensure Hugging Face model identifiers work across Ultralytics versions."""
+
+    if model_name.startswith("hf://"):
+        return model_name
 
     if "/" not in model_name:
-        return
+        return model_name
 
     candidate = Path(model_name)
     if candidate.exists():
-        return
+        return str(candidate)
 
     try:
         import huggingface_hub  # type: ignore # noqa: F401
@@ -35,6 +38,8 @@ def ensure_huggingface_available(model_name: str) -> None:
             "`pip install huggingface-hub` or add it to your environment before "
             "running auto_label.py."
         ) from exc
+
+    return f"hf://{model_name}"
 
 
 SUPPORTED_SUFFIXES = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"}
@@ -70,7 +75,11 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--model",
         type=str,
         default="keremberke/yolov8n-license-plate",
-        help="Ultralytics model checkpoint to use for auto-labelling.",
+        help=(
+            "Ultralytics model checkpoint to use for auto-labelling. Hugging Face "
+            "repo IDs are supported and automatically converted to the new 'hf://' "
+            "format when required."
+        ),
     )
     parser.add_argument(
         "--conf",
@@ -274,8 +283,8 @@ def run_detector(
     gamma_value: float,
     sharpen_strength: float,
 ) -> List[Tuple[ImageLabelPair, List[Tuple[int, float, float, float, float]]]]:
-    ensure_huggingface_available(model_name)
-    model = YOLO(model_name)
+    resolved_model = normalise_model_name(model_name)
+    model = YOLO(resolved_model)
 
     if enhancements:
         sources = [
