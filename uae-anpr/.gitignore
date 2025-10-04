@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+.env
+runs/
+
+# Java / Maven
+service/target/
+*.iml
+.idea/
+.mvn/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Training artifacts
+training/data/images/**/*.jpg
+training/data/images/**/*.png
+training/data/labels/**/*.txt
+service/models/*.onnx
+service/tessdata/*
+!service/models/.keep
+!service/tessdata/.keep
