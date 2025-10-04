@@ -18,7 +18,13 @@ def parse_args() -> argparse.Namespace:
         default="yolo11n.pt",
         help="Pretrained weights to start from",
     )
-    parser.add_argument("--data", type=str, default="data.yaml", help="Dataset YAML path")
+    default_data = Path(__file__).with_name("data.yaml").resolve()
+    parser.add_argument(
+        "--data",
+        type=str,
+        default=str(default_data),
+        help="Dataset YAML path",
+    )
     return parser.parse_args()
 
 
