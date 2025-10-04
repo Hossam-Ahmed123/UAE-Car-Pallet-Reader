@@ -16,6 +16,76 @@ except ImportError:  # pragma: no cover - OpenCV should be available via require
 from ultralytics import YOLO
 
 
+def download_hf_model_weights(model_uri: str) -> Path:
+    """Download a Hugging Face hosted model checkpoint and return the local path."""
+
+    if not model_uri.startswith("hf://"):
+        raise ValueError(f"Not a Hugging Face model URI: {model_uri}")
+
+    try:
+        from huggingface_hub import hf_hub_download, snapshot_download
+        from huggingface_hub.utils import HfHubHTTPError
+    except ImportError as exc:  # pragma: no cover - requires optional dependency
+        raise RuntimeError(
+            "Downloading models from the Hugging Face Hub requires the 'huggingface-hub' "
+            "package. Install it with `pip install huggingface-hub` before running the "
+            "auto-label script."
+        ) from exc
+
+    path = model_uri[len("hf://") :]
+    repo_and_subpath, _, revision = path.partition("@")
+
+    parts = repo_and_subpath.split("/")
+    if len(parts) < 2:
+        raise ValueError(
+            "Expected a Hugging Face repository identifier in the form 'namespace/repo'. "
+            f"Received: {model_uri}"
+        )
+
+    repo_id = "/".join(parts[:2])
+    subpath = "/".join(parts[2:]) or None
+
+    download_kwargs = {"repo_id": repo_id}
+    if revision:
+        download_kwargs["revision"] = revision
+
+    try:
+        if subpath:
+            return Path(hf_hub_download(filename=subpath, **download_kwargs))
+
+        local_dir = Path(snapshot_download(**download_kwargs))
+    except HfHubHTTPError as exc:
+        raise FileNotFoundError(
+            f"Failed to download model weights from Hugging Face ({model_uri}): {exc}"
+        ) from exc
+
+    preferred_names = [
+        "model.safetensors",
+        "model.pt",
+        "weights/best.pt",
+        "best.pt",
+        "weights/last.pt",
+        "last.pt",
+    ]
+
+    for name in preferred_names:
+        candidate = local_dir / name
+        if candidate.exists():
+            return candidate
+
+    candidates = []
+    for suffix in (".pt", ".safetensors", ".onnx", ".engine"):
+        candidates.extend(sorted(local_dir.rglob(f"*{suffix}")))
+
+    if not candidates:
+        raise FileNotFoundError(
+            "Unable to locate a supported weight file (*.pt, *.safetensors, *.onnx, *.engine) "
+            f"in the downloaded repository: {model_uri}"
+        )
+
+    return Path(candidates[0])
+
+
 def normalise_model_name(model_name: str) -> str:
     """Ensure Hugging Face model identifiers work across Ultralytics versions."""
 
@@ -284,7 +354,20 @@ def run_detector(
     sharpen_strength: float,
 ) -> List[Tuple[ImageLabelPair, List[Tuple[int, float, float, float, float]]]]:
     resolved_model = normalise_model_name(model_name)
-    model = YOLO(resolved_model)
+    try:
+        model = YOLO(resolved_model)
+    except FileNotFoundError as exc:
+        if not resolved_model.startswith("hf://"):
+            raise
+
+        local_weights = download_hf_model_weights(resolved_model)
+        try:
+            model = YOLO(str(local_weights))
+        except FileNotFoundError:
+            raise FileNotFoundError(
+                "Failed to load the downloaded Hugging Face weights. "
+                f"Expected to find a valid checkpoint at: {local_weights}"
+            ) from exc
 
     if enhancements:
         sources = [
