@@ -7,6 +7,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, List, Sequence, Tuple
 
+import numpy as np
+try:
+    import cv2
+except ImportError:  # pragma: no cover - OpenCV should be available via requirements
+    cv2 = None
+
 from ultralytics import YOLO
 
 
@@ -84,6 +90,34 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="Skip images that already have a corresponding label file.",
     )
     parser.add_argument(
+        "--enhance",
+        nargs="*",
+        choices=("clahe", "gamma", "sharpen"),
+        default=(),
+        help=(
+            "Apply simple image enhancements before detection. "
+            "Supported options: clahe (contrast-limited adaptive histogram equalisation), "
+            "gamma (power-law correction), sharpen (unsharp masking)."
+        ),
+    )
+    parser.add_argument(
+        "--gamma-value",
+        type=float,
+        default=1.5,
+        help=(
+            "Gamma value used when --enhance includes 'gamma'. "
+            "Values > 1.0 brighten the image, < 1.0 darken it."
+        ),
+    )
+    parser.add_argument(
+        "--sharpen-strength",
+        type=float,
+        default=0.5,
+        help=(
+            "Sharpening intensity for unsharp masking when --enhance includes 'sharpen'."
+        ),
+    )
+    parser.add_argument(
         "--recursive",
         action="store_true",
         help="Recursively search the images directory (enabled by default when sub-folders exist).",
@@ -147,6 +181,67 @@ def pair_with_labels(
     return pairs, skipped
 
 
+def ensure_opencv_available() -> None:
+    if cv2 is None:
+        raise RuntimeError(
+            "OpenCV is required for image enhancement but is not installed. "
+            "Install the training requirements (`pip install -r training/requirements.txt`)."
+        )
+
+
+def apply_enhancements(
+    image: np.ndarray,
+    enhancements: Sequence[str],
+    gamma_value: float,
+    sharpen_strength: float,
+) -> np.ndarray:
+    enhanced = image
+
+    for enhancement in enhancements:
+        if enhancement == "clahe":
+            lab = cv2.cvtColor(enhanced, cv2.COLOR_BGR2LAB)
+            l_channel, a_channel, b_channel = cv2.split(lab)
+            clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
+            l_channel = clahe.apply(l_channel)
+            lab = cv2.merge((l_channel, a_channel, b_channel))
+            enhanced = cv2.cvtColor(lab, cv2.COLOR_LAB2BGR)
+        elif enhancement == "gamma":
+            gamma = max(gamma_value, 1e-6)
+            inv_gamma = 1.0 / gamma
+            table = np.array([
+                ((i / 255.0) ** inv_gamma) * 255 for i in np.arange(256)
+            ]).astype("uint8")
+            enhanced = cv2.LUT(enhanced, table)
+        elif enhancement == "sharpen":
+            blurred = cv2.GaussianBlur(enhanced, (0, 0), sigmaX=3)
+            enhanced = cv2.addWeighted(enhanced, 1 + sharpen_strength, blurred, -sharpen_strength, 0)
+
+    return enhanced
+
+
+def load_image_with_enhancements(
+    image_path: Path,
+    enhancements: Sequence[str],
+    gamma_value: float,
+    sharpen_strength: float,
+) -> np.ndarray:
+    ensure_opencv_available()
+
+    image = cv2.imread(str(image_path))
+    if image is None:
+        raise FileNotFoundError(f"Failed to read image: {image_path}")
+
+    if enhancements:
+        image = apply_enhancements(
+            image=image,
+            enhancements=enhancements,
+            gamma_value=gamma_value,
+            sharpen_strength=sharpen_strength,
+        )
+
+    return image
+
+
 def run_detector(
     model_name: str,
     pairs: Sequence[ImageLabelPair],
@@ -154,10 +249,25 @@ def run_detector(
     iou: float,
     device: str | None,
     batch: int,
+    enhancements: Sequence[str],
+    gamma_value: float,
+    sharpen_strength: float,
 ) -> List[Tuple[ImageLabelPair, List[Tuple[int, float, float, float, float]]]]:
     model = YOLO(model_name)
 
-    sources = [str(pair.image_path) for pair in pairs]
+    if enhancements:
+        sources = [
+            load_image_with_enhancements(
+                pair.image_path,
+                enhancements=enhancements,
+                gamma_value=gamma_value,
+                sharpen_strength=sharpen_strength,
+            )
+            for pair in pairs
+        ]
+    else:
+        sources = [str(pair.image_path) for pair in pairs]
+
     results = model.predict(
         source=sources,
         conf=conf,
@@ -250,6 +360,9 @@ def main(argv: Sequence[str] | None = None) -> None:
         iou=args.iou,
         device=args.device,
         batch=args.batch,
+        enhancements=args.enhance,
+        gamma_value=args.gamma_value,
+        sharpen_strength=args.sharpen_strength,
     )
 
     written, empty = write_labels(paired_results, class_id=args.class_id)

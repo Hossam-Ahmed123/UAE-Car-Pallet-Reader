@@ -23,6 +23,16 @@ python auto_label.py --images data/images --labels data/labels --class-id 0
 
 The script mirrors the folder structure under `data/images`, writing YOLO text files to the matching location in `data/labels`. Existing label files are preserved when `--skip-existing` is supplied, and you can customise the detector checkpoint via `--model`.
 
+For challenging lighting conditions you can stack lightweight pre-processing steps (CLAHE, gamma correction, unsharp masking) before the detector runs:
+
+```bash
+python auto_label.py \
+  --images data/images --labels data/labels \
+  --enhance clahe gamma sharpen --gamma-value 1.3 --sharpen-strength 0.4
+```
+
+Enhancements are applied in-memory only—the script will still emit standard YOLO text files under `training/data/labels/**/*.txt` without producing any additional binary artefacts.
+
 ### Environment setup
 
 #### Windows (PowerShell)
