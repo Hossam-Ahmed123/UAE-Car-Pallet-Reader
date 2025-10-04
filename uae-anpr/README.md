@@ -1,138 +1,32 @@
-# UAE ANPR Monorepo
+# UAE OCR ANPR
 
-Production-ready training and inference stack for UAE licence plate recognition. The repository is organised as a monorepo with a Python fine-tuning workspace and a Spring Boot inference service that consumes the exported ONNX detector and Tess4J OCR.
+Spring Boot service that reads UAE license plates using **OpenCV** preprocessing + **Tess4J (Tesseract)** OCR.  
+No GPU, no deep learning detector.
 
-```
-uae-anpr/
-├── training/          # Ultralytics YOLO workflow
-└── service/           # Spring Boot REST API + ONNX Runtime
-```
-
-## 1. Training workflow (Ultralytics YOLO)
-
-### Dataset layout
-
-Place your raw plate images inside `training/data/images`. The `utils_autosplit.py` helper will move them into `train/` and `val/` splits (85/15) the first time you run it. Labels should be supplied in YOLO format under `training/data/labels/train` and `training/data/labels/val`.
-
-If you need to bootstrap annotations, the repository ships with `training/auto_label.py`, which wraps a pre-trained licence plate detector (`keremberke/yolov8n-license-plate`). The script relies on the [`huggingface-hub`](https://pypi.org/project/huggingface-hub/) package to download the checkpoint the first time it runs. Once your images have been split, run:
-
+## Run (Dev)
+1. Install JDK 21 + Maven.
+2. Download Tesseract languages `eng.traineddata` and `ara.traineddata` and place them under `tessdata/`.
+3. Build & run:
 ```bash
-cd training
-python auto_label.py --images data/images --labels data/labels --class-id 0
-```
-
-The script mirrors the folder structure under `data/images`, writing YOLO text files to the matching location in `data/labels`. Existing label files are preserved when `--skip-existing` is supplied, and you can customise the detector checkpoint via `--model`.
-
-For challenging lighting conditions you can stack lightweight pre-processing steps (CLAHE, gamma correction, unsharp masking) before the detector runs:
-
-```bash
-python auto_label.py \
-  --images data/images --labels data/labels \
-  --enhance clahe gamma sharpen --gamma-value 1.3 --sharpen-strength 0.4
-```
-
-Enhancements are applied in-memory only—the script will still emit standard YOLO text files under `training/data/labels/**/*.txt` without producing any additional binary artefacts.
-
-### Environment setup
-
-#### Windows (PowerShell)
-
-```powershell
-cd training
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-python utils_autosplit.py
-yolo task=detect mode=train model=yolo11n.pt data=data.yaml imgsz=640 epochs=80 batch=16
-yolo mode=export model=runs/detect/train/weights/best.pt format=onnx opset=12
-copy .\runs\detect\train\weights\best.onnx ..\service\models\best.onnx
-```
-
-#### Linux/macOS
-
-```bash
-cd training
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-python utils_autosplit.py
-python train_yolo.py
-python export_onnx.py
-```
-
-The scripted `train_yolo.py` entry point mirrors the YOLO CLI defaults specified above (`--imgsz 640 --epochs 80 --batch 16 --weights yolo11n.pt`). After training completes, `export_onnx.py` moves the exported `best.onnx` into `service/models/best.onnx` for deployment.
-
-## 2. REST inference service (Java 21 / Spring Boot 3)
-
-### Local development
-
-Prerequisites:
-
-* Java 21 (Temurin recommended)
-* Maven 3.9+
-* The exported detector at `service/models/best.onnx`
-* Tessdata files (`eng.traineddata`, `ara.traineddata`) placed in `service/tessdata`
-
-Build and test:
-
-```bash
-cd service
 mvn -q -DskipTests package
-mvn test
+java -jar target/uae-ocr-anpr-0.0.1-SNAPSHOT.jar
 ```
-
-Run locally:
-
+4. Call the API:
 ```bash
-java -jar target/anpr-service-1.0.0.jar
+curl -X POST http://localhost:9090/api/v1/plates/recognize   -F "image=@/path/to/plate.jpg"
 ```
 
-The API listens on port `9090`. Recognise plates by sending a multipart request:
-
-```bash
-curl -X POST http://localhost:9090/api/v1/plates/recognize \
-  -F "image=@sample.jpg"
-```
-
-On success the service returns:
-
+## API
+- `POST /api/v1/plates/recognize` (multipart)
+- Response:
 ```json
 {
   "results": [
-    {
-      "number": "97344",
-      "letter": "F",
-      "emirate": "Dubai",
-      "confidence": 0.92,
-      "rawText": "optional-ocr-dump",
-      "x": 120,
-      "y": 210,
-      "width": 220,
-      "height": 110
-    }
+    {"number":"97344","letter":"F","emirate":"Dubai","rawText":"..."}
   ]
 }
 ```
 
-When no plates are detected the service responds with HTTP 422 and a descriptive error payload.
-
-### Docker build
-
-```bash
-cd service
-docker build -t uae-anpr-service .
-docker run --rm -p 9090:9090 \ 
-  -v $(pwd)/models:/app/models \ 
-  -v $(pwd)/tessdata:/app/tessdata \ 
-  uae-anpr-service
-```
-
-The container includes the ONNX model and tessdata directories; mount your trained artefacts at runtime to swap models without rebuilding the image.
-
-## 3. Repository notes
-
-* `service/src/test` contains lightweight unit tests for the OCR normalisation pipeline and emirate parsing heuristics.
-* `training/env.txt` summarises how to create/activate virtual environments on Windows and Linux.
-* `service/application.yml` exposes configurable thresholds and paths for the runtime.
-
-This solution is self-contained and can operate entirely offline once models and tessdata files are available locally.
+## Notes
+- The service attempts to auto-detect a likely plate rectangle via contour heuristics. If none is found, it OCRs the whole image as a fallback.
+- Edit `application.yml` to change tessdata path or OCR language.

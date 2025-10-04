@@ -1,0 +1,8 @@
+server:
+  port: 9090
+
+ocr:
+  tessdataPath: C:\Program Files\Tesseract-OCR\tessdata
+  lang: eng+ara
+
+  whitelist: "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ دبي ابوظبي الشارقة عجمان رأس الخيمةالفجيرة ام القيوين"
