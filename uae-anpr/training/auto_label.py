@@ -16,6 +16,27 @@ except ImportError:  # pragma: no cover - OpenCV should be available via require
 from ultralytics import YOLO
 
 
+def ensure_huggingface_available(model_name: str) -> None:
+    """Raise a helpful error when a Hugging Face model cannot be resolved."""
+
+    if "/" not in model_name:
+        return
+
+    candidate = Path(model_name)
+    if candidate.exists():
+        return
+
+    try:
+        import huggingface_hub  # type: ignore # noqa: F401
+    except ImportError as exc:  # pragma: no cover - only triggered on misconfiguration
+        raise RuntimeError(
+            "The requested model appears to be hosted on the Hugging Face Hub but the "
+            "'huggingface-hub' package is not installed. Install it with "
+            "`pip install huggingface-hub` or add it to your environment before "
+            "running auto_label.py."
+        ) from exc
+
+
 SUPPORTED_SUFFIXES = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"}
 
 
@@ -253,6 +274,7 @@ def run_detector(
     gamma_value: float,
     sharpen_strength: float,
 ) -> List[Tuple[ImageLabelPair, List[Tuple[int, float, float, float, float]]]]:
+    ensure_huggingface_available(model_name)
     model = YOLO(model_name)
 
     if enhancements:

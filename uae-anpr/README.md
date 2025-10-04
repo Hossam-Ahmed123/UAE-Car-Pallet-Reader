@@ -14,7 +14,7 @@ uae-anpr/
 
 Place your raw plate images inside `training/data/images`. The `utils_autosplit.py` helper will move them into `train/` and `val/` splits (85/15) the first time you run it. Labels should be supplied in YOLO format under `training/data/labels/train` and `training/data/labels/val`.
 
-If you need to bootstrap annotations, the repository ships with `training/auto_label.py`, which wraps a pre-trained licence plate detector (`keremberke/yolov8n-license-plate`). Once your images have been split, run:
+If you need to bootstrap annotations, the repository ships with `training/auto_label.py`, which wraps a pre-trained licence plate detector (`keremberke/yolov8n-license-plate`). The script relies on the [`huggingface-hub`](https://pypi.org/project/huggingface-hub/) package to download the checkpoint the first time it runs. Once your images have been split, run:
 
 ```bash
 cd training
