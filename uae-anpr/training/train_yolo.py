@@ -3,7 +3,9 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+from typing import Any, Dict
 
+import yaml
 from ultralytics import YOLO
 
 
@@ -18,8 +20,41 @@ def parse_args() -> argparse.Namespace:
         default="yolo11n.pt",
         help="Pretrained weights to start from",
     )
-    parser.add_argument("--data", type=str, default="data.yaml", help="Dataset YAML path")
+    default_data = Path(__file__).with_name("data.yaml").resolve()
+    parser.add_argument(
+        "--data",
+        type=str,
+        default=str(default_data),
+        help="Dataset YAML path",
+    )
     return parser.parse_args()
+
+
+def load_data_config(data_path: str) -> Dict[str, Any]:
+    """Load a Ultralytics data.yaml file and resolve relative paths."""
+
+    config_path = Path(data_path)
+    with config_path.open("r", encoding="utf-8") as fh:
+        config: Dict[str, Any] = yaml.safe_load(fh)
+
+    dataset_root = config_path.parent.resolve()
+    config["path"] = str(dataset_root)
+
+    def resolve_entry(value: Any) -> Any:
+        if isinstance(value, str):
+            entry_path = Path(value)
+            if not entry_path.is_absolute():
+                entry_path = (dataset_root / entry_path).resolve()
+            return str(entry_path)
+        if isinstance(value, list):
+            return [resolve_entry(item) for item in value]
+        return value
+
+    for key in ("train", "val", "test"):
+        if key in config:
+            config[key] = resolve_entry(config[key])
+
+    return config
 
 
 def main() -> None:
@@ -27,9 +62,11 @@ def main() -> None:
     project_dir = Path("runs") / "detect"
     name = "train"
 
+    data_config = load_data_config(args.data)
+
     model = YOLO(args.weights)
     results = model.train(
-        data=args.data,
+        data=data_config,
         imgsz=args.imgsz,
         epochs=args.epochs,
         batch=args.batch,
