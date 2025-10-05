@@ -8,6 +8,7 @@ import java.nio.file.Paths;
 import net.sourceforge.tess4j.TessAPI;
 import net.sourceforge.tess4j.Tesseract;
 import net.sourceforge.tess4j.TesseractException;
+import net.sourceforge.tess4j.util.LoadLibs;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -20,14 +21,11 @@ public class OcrService {
 
     private final Tesseract tess;
 
-    public OcrService(@Value("${ocr.tessdataPath}") String tessdataPath,
+    public OcrService(@Value("${ocr.tessdataPath:}") String tessdataPath,
                       @Value("${ocr.lang:eng+ara}") String lang,
                       @Value("${ocr.whitelist}") String whitelist) {
         this.tess = new Tesseract();
-        Path tessdataDir = Paths.get(tessdataPath).toAbsolutePath().normalize();
-        if (!Files.isDirectory(tessdataDir)) {
-            throw new IllegalArgumentException("Invalid tessdata directory: " + tessdataDir);
-        }
+        Path tessdataDir = resolveTessdataPath(tessdataPath);
         this.tess.setDatapath(tessdataDir.toString());
         log.info("Initialized Tesseract with tessdata directory: {}", tessdataDir);
         this.tess.setLanguage(lang);
@@ -35,6 +33,22 @@ public class OcrService {
         if (whitelist != null && !whitelist.isBlank()) {
             this.tess.setTessVariable("tessedit_char_whitelist", whitelist);
         }
+    }
+
+    private Path resolveTessdataPath(String configuredPath) {
+        if (configuredPath != null && !configuredPath.isBlank()) {
+            Path tessdataDir = Paths.get(configuredPath).toAbsolutePath().normalize();
+            if (Files.isDirectory(tessdataDir)) {
+                return tessdataDir;
+            }
+            log.warn("Configured tessdata directory '{}' does not exist; falling back to embedded tessdata", tessdataDir);
+        }
+
+        Path extracted = LoadLibs.extractTessResources("tessdata").toPath();
+        if (!Files.isDirectory(extracted)) {
+            throw new IllegalStateException("Unable to locate tessdata resources under " + extracted);
+        }
+        return extracted;
     }
 
     private String ocrWith(String whitelist, int psm, BufferedImage bi) {
