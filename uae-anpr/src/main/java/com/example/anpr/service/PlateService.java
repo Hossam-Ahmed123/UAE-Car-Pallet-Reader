@@ -47,6 +47,12 @@ public class PlateService {
             // For larger images, try multiple strategies
             List<PlateResult> allResults = new ArrayList<>();
 
+            // Strategy 0: Dubai style heuristic (runs first so it can win quickly when confident)
+            PlateResult dubaiStyle = recognizeDubaiStylePlate(src);
+            if (dubaiStyle != null) {
+                allResults.add(dubaiStyle);
+            }
+
             // Strategy 1: Original image with ROI detection
             PlateResult result1 = recognizeFrom(src, true, "ROI_DETECTION");
             allResults.add(result1);
@@ -145,6 +151,77 @@ public class PlateService {
         );
 
         return new PlateResult(parsed.number, parsed.letter, parsed.emirate, diagnostics);
+    }
+
+    private PlateResult recognizeDubaiStylePlate(Mat original) {
+        try {
+            Rect roi = ImageUtils.tryFindPlateROI(original);
+            Mat plate = (roi != null ? new Mat(original, roi) : original).clone();
+
+            // Normalise plate dimensions for deterministic crops
+            Mat normalised = ImageUtils.prepareDubaiPlate(plate);
+
+            if (normalised.empty()) {
+                return null;
+            }
+
+            // Expected layout:
+            // ┌───────────────┬─────┐
+            // │  Emirate text │ Ltr │  <- top band (~38% height)
+            // ├───────────────┴─────┤
+            // │       Digits        │  <- bottom band
+            // └─────────────────────┘
+            Rect topBand = ImageUtils.relativeRect(normalised, 0.0, 0.0, 1.0, 0.38);
+            Rect digitsBand = ImageUtils.relativeRect(normalised, 0.06, 0.38, 0.88, 0.58);
+            Rect letterRect = ImageUtils.relativeRect(normalised, 0.72, 0.05, 0.25, 0.30);
+
+            Mat top = new Mat(normalised, topBand).clone();
+            Mat digitsRegion = new Mat(normalised, digitsBand).clone();
+            Mat letterRegion = new Mat(normalised, letterRect).clone();
+
+            // Digits : combine multiple aggressive preprocessings
+            List<String> digitCandidates = new ArrayList<>();
+            for (Mat m : ImageUtils.generateDigitVariants(digitsRegion)) {
+                digitCandidates.add(ocr.ocrDigits(ImageUtils.toBufferedImage(m)));
+            }
+            String digits = selectBestDigits(digitCandidates);
+
+            // Letter : focus on single character area with multiple crops
+            List<String> letterCandidates = new ArrayList<>();
+            letterCandidates.add(normalizeLetter(ocr.ocrLetters(ImageUtils.toBufferedImage(ImageUtils.prepareDubaiLetter(letterRegion)))));
+            for (Mat variant : ImageUtils.generateDubaiLetterVariants(normalised)) {
+                letterCandidates.add(normalizeLetter(ocr.ocrLetters(ImageUtils.toBufferedImage(variant))));
+            }
+            String letter = majorityLetter(letterCandidates.toArray(new String[0]));
+
+            // Emirate : use entire top band and whole plate for redundancy
+            String emirateCombined = String.join(" ", Arrays.asList(
+                    ocr.ocrEmirate(ImageUtils.toBufferedImage(ImageUtils.prepareDubaiEmirate(top))),
+                    ocr.ocrEmirate(ImageUtils.toBufferedImage(ImageUtils.prepareDubaiEmirate(normalised)))
+            ));
+
+            EmirateParser.Parsed parsed = parseAndValidate(emirateCombined, digits, letter);
+
+            String diagnostics = String.format(
+                    "DUBAI_HEURISTIC | SRC=%dx%d | ROI=%s | DIGITS=%s | LETTER=%s | EMIRATE=%s",
+                    original.cols(),
+                    original.rows(),
+                    roi != null ? roi.width() + "x" + roi.height() : "FULL",
+                    digits,
+                    letter,
+                    emirateCombined
+            );
+
+            // Only accept when we have convincing results, otherwise fall back to other strategies
+            if (parsed != null && parsed.number != null && parsed.number.length() >= 4) {
+                return new PlateResult(parsed.number, parsed.letter, parsed.emirate, diagnostics);
+            }
+            return null;
+
+        } catch (Exception e) {
+            log.debug("Dubai heuristic failed: {}", e.getMessage());
+            return null;
+        }
     }
 
 
@@ -248,10 +325,77 @@ public class PlateService {
     }
 
     private String selectBestDigits(List<String> digitResults) {
-        return digitResults.stream()
+        List<String> normalized = digitResults.stream()
                 .filter(Objects::nonNull)
-                .max(Comparator.comparingInt(this::digitScore))
-                .orElse("");
+                .map(s -> s.replaceAll("\\D+", ""))
+                .map(String::trim)
+                .filter(s -> !s.isBlank())
+                .map(s -> s.length() > 5 ? s.substring(0, 5) : s)
+                .collect(Collectors.toList());
+
+        if (normalized.isEmpty()) {
+            return "";
+        }
+
+        int targetLength = determineDigitLength(normalized);
+        List<String> targetCandidates = normalized.stream()
+                .filter(s -> s.length() == targetLength)
+                .collect(Collectors.toList());
+
+        List<String> pool = targetCandidates.isEmpty() ? normalized : targetCandidates;
+
+        return pool.stream()
+                .max(Comparator.comparingInt(candidate -> digitConsensusScore(candidate, normalized)))
+                .orElse(normalized.get(0));
+    }
+
+    private int determineDigitLength(List<String> candidates) {
+        Map<Integer, Long> lengthCounts = candidates.stream()
+                .collect(Collectors.groupingBy(String::length, Collectors.counting()));
+
+        return lengthCounts.entrySet().stream()
+                .sorted((a, b) -> {
+                    int countCompare = Long.compare(b.getValue(), a.getValue());
+                    if (countCompare != 0) {
+                        return countCompare;
+                    }
+                    int closenessA = Math.abs(5 - a.getKey());
+                    int closenessB = Math.abs(5 - b.getKey());
+                    if (closenessA != closenessB) {
+                        return Integer.compare(closenessA, closenessB);
+                    }
+                    return Integer.compare(b.getKey(), a.getKey());
+                })
+                .map(Map.Entry::getKey)
+                .findFirst()
+                .orElse(5);
+    }
+
+    private int digitConsensusScore(String candidate, List<String> all) {
+        int score = 0;
+        for (String other : all) {
+            if (candidate.equals(other)) {
+                score += 15;
+                continue;
+            }
+
+            int min = Math.min(candidate.length(), other.length());
+            for (int i = 0; i < min; i++) {
+                if (candidate.charAt(i) == other.charAt(i)) {
+                    score += 3;
+                }
+            }
+
+            if (candidate.endsWith(other) || other.endsWith(candidate)) {
+                score += 5;
+            } else if (candidate.startsWith(other) || other.startsWith(candidate)) {
+                score += 4;
+            }
+        }
+
+        int closeness = Math.max(0, 5 - Math.abs(5 - candidate.length()));
+        score += closeness * 2;
+        return score;
     }
 
     private int confidence(PlateResult result) {
@@ -275,12 +419,6 @@ public class PlateService {
         }
 
         return score;
-    }
-
-    private int digitScore(String value) {
-        if (value == null) return -1;
-        String numbers = value.replaceAll("\\D+", "");
-        return numbers.length();
     }
 
     private static String normalizeLetter(String s) {

@@ -14,6 +14,8 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.awt.image.BufferedImage;
+import java.util.ArrayList;
+import java.util.List;
 
 public class ImageUtils {
     private static final Logger log = LoggerFactory.getLogger(ImageUtils.class);
@@ -376,6 +378,124 @@ public class ImageUtils {
         opencv_imgproc.medianBlur(enhanced, denoised, 3);
 
         return denoised;
+    }
+
+    public static Mat prepareDubaiPlate(Mat src) {
+        if (src == null || src.empty()) {
+            return new Mat();
+        }
+
+        Mat plate = src.clone();
+        if (plate.channels() == 3) {
+            opencv_imgproc.cvtColor(plate, plate, opencv_imgproc.COLOR_BGR2GRAY);
+        }
+
+        // UAE plates are rectangular – straighten aspect by resizing to canonical size
+        plate = ensureHeight(plate, 220, 360);
+        opencv_imgproc.GaussianBlur(plate, plate, new Size(3, 3), 0);
+        opencv_imgproc.equalizeHist(plate, plate);
+        plate = enhanceUaePlateRegion(plate);
+        plate = ensureHeight(plate, 240, 320);
+        return plate;
+    }
+
+    public static Rect relativeRect(Mat mat, double x, double y, double width, double height) {
+        if (mat == null || mat.empty()) {
+            return new Rect();
+        }
+        int W = mat.cols();
+        int H = mat.rows();
+
+        int rx = clamp((int) Math.round(W * x), 0, W - 1);
+        int ry = clamp((int) Math.round(H * y), 0, H - 1);
+        int rW = clamp((int) Math.round(W * width), 1, W - rx);
+        int rH = clamp((int) Math.round(H * height), 1, H - ry);
+        return new Rect(rx, ry, rW, rH);
+    }
+
+    private static int clamp(int value, int min, int max) {
+        return Math.max(min, Math.min(max, value));
+    }
+
+    public static List<Mat> generateDigitVariants(Mat digitsRegion) {
+        Mat gray = toGray(digitsRegion);
+        List<Mat> variants = new ArrayList<>();
+
+        Mat upscaled = ensureHeight(gray, 160, 320);
+        variants.add(enhanceForOCR(upscaled));
+
+        Mat adaptive = adaptive(upscaled);
+        variants.add(removeBorderNoise(adaptive));
+
+        Mat morph = adaptive.clone();
+        Mat kernel = opencv_imgproc.getStructuringElement(opencv_imgproc.MORPH_RECT, new Size(3, 3));
+        opencv_imgproc.morphologyEx(adaptive, morph, opencv_imgproc.MORPH_CLOSE, kernel, new Point(-1, -1), 1, opencv_core.BORDER_DEFAULT, new Scalar(0));
+        variants.add(removeBorderNoise(morph));
+
+        Mat highContrast = createHighContrast(upscaled);
+        variants.add(removeBorderNoise(highContrast));
+
+        // Slight erosion/dilation pair to balance thickness
+        Mat opened = new Mat();
+        opencv_imgproc.morphologyEx(highContrast, opened, opencv_imgproc.MORPH_OPEN, kernel);
+        variants.add(removeBorderNoise(opened));
+
+        return variants;
+    }
+
+    public static Mat prepareDubaiLetter(Mat letterRegion) {
+        Mat gray = ensureHeight(toGray(letterRegion), 160, 260);
+        Mat enhanced = enhanceForSmallText(gray);
+        Mat binary = createHighContrast(enhanced);
+        return removeBorderNoise(binary);
+    }
+
+    public static Mat prepareDubaiEmirate(Mat emirateRegion) {
+        Mat gray = ensureHeight(toGray(emirateRegion), 180, 260);
+        Mat clahe = new Mat();
+        try {
+            opencv_imgproc.createCLAHE(2.5, new Size(8, 8)).apply(gray, clahe);
+        } catch (Exception e) {
+            log.debug("CLAHE for emirate failed: {}", e.getMessage());
+            clahe = gray;
+        }
+        Mat adaptive = adaptive(clahe);
+        Mat denoised = removeBorderNoise(adaptive);
+        return denoised;
+    }
+
+    public static List<Mat> generateDubaiLetterVariants(Mat plate) {
+        List<Mat> variants = new ArrayList<>();
+        if (plate == null || plate.empty()) {
+            return variants;
+        }
+
+        double[][] rects = new double[][]{
+                {0.70, 0.05, 0.26, 0.55},
+                {0.68, 0.10, 0.28, 0.50},
+                {0.72, 0.20, 0.22, 0.55}
+        };
+
+        for (double[] r : rects) {
+            Rect rect = relativeRect(plate, r[0], r[1], r[2], r[3]);
+            if (rect.width() <= 0 || rect.height() <= 0) {
+                continue;
+            }
+            Mat region = new Mat(plate, rect).clone();
+            Mat prepared = prepareDubaiLetter(region);
+            variants.add(prepared);
+            variants.add(invertImage(prepared));
+        }
+
+        Rect topBand = relativeRect(plate, 0.58, 0.00, 0.40, 0.40);
+        if (topBand.width() > 0 && topBand.height() > 0) {
+            Mat topRegion = new Mat(plate, topBand).clone();
+            Mat preparedTop = prepareDubaiLetter(topRegion);
+            variants.add(preparedTop);
+            variants.add(invertImage(preparedTop));
+        }
+
+        return variants;
     }
 
 
