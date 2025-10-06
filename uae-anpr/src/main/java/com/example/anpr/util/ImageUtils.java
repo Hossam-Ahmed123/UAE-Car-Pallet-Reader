@@ -399,6 +399,42 @@ public class ImageUtils {
         return plate;
     }
 
+    public static List<Mat> generateDubaiPlateLevels(Mat src, int levels) {
+        List<Mat> variants = new ArrayList<>();
+        if (src == null || src.empty() || levels <= 0) {
+            return variants;
+        }
+
+        Mat base = prepareDubaiPlate(src);
+        if (base.empty()) {
+            return variants;
+        }
+
+        variants.add(base);
+        if (levels == 1) {
+            return variants;
+        }
+
+        double minScale = 0.85;
+        double maxScale = 1.30;
+        double minAlpha = 0.9;
+        double maxAlpha = 1.4;
+
+        for (int i = 1; i < levels; i++) {
+            double t = i / (double) (levels - 1);
+            double scale = minScale + (maxScale - minScale) * t;
+            double alpha = minAlpha + (maxAlpha - minAlpha) * t;
+            double beta = (t - 0.5) * 40.0;
+
+            Mat scaled = ensureHeight(resize(base, scale), 240, 340);
+            Mat contrasted = adjustContrast(scaled, alpha, beta);
+            Mat sharpened = applyUnsharpMask(contrasted, 0.6 + 0.4 * t);
+            variants.add(sharpened);
+        }
+
+        return variants;
+    }
+
     public static Rect relativeRect(Mat mat, double x, double y, double width, double height) {
         if (mat == null || mat.empty()) {
             return new Rect();
@@ -496,6 +532,20 @@ public class ImageUtils {
         }
 
         return variants;
+    }
+
+    private static Mat applyUnsharpMask(Mat src, double amount) {
+        Mat blurred = new Mat();
+        opencv_imgproc.GaussianBlur(src, blurred, new Size(0, 0), 1.0);
+        Mat sharpened = new Mat();
+        opencv_core.addWeighted(src, 1.0 + amount, blurred, -amount, 0, sharpened);
+        return sharpened;
+    }
+
+    public static Mat adjustContrast(Mat src, double alpha, double beta) {
+        Mat adjusted = new Mat();
+        src.convertTo(adjusted, -1, alpha, beta);
+        return adjusted;
     }
 
 
