@@ -16,9 +16,8 @@
 
 package net.sf.javaanpr.gui.windows;
 
-import org.jdesktop.layout.GroupLayout;
-
 import javax.swing.*;
+import javax.swing.GroupLayout;
 import javax.swing.border.BevelBorder;
 import java.awt.*;
 
@@ -57,10 +56,10 @@ public class FrameComponentInit extends JFrame {
         label.setBorder(BorderFactory.createBevelBorder(BevelBorder.RAISED));
         GroupLayout layout = new GroupLayout(getContentPane());
         getContentPane().setLayout(layout);
-        layout.setHorizontalGroup(layout.createParallelGroup(GroupLayout.LEADING)
-                .add(label, GroupLayout.DEFAULT_SIZE, 431, Short.MAX_VALUE));
-        layout.setVerticalGroup(layout.createParallelGroup(GroupLayout.LEADING)
-                .add(label, GroupLayout.DEFAULT_SIZE, 50, Short.MAX_VALUE));
+        layout.setHorizontalGroup(layout.createParallelGroup(GroupLayout.Alignment.LEADING)
+                .addComponent(label, GroupLayout.DEFAULT_SIZE, 431, Short.MAX_VALUE));
+        layout.setVerticalGroup(layout.createParallelGroup(GroupLayout.Alignment.LEADING)
+                .addComponent(label, GroupLayout.DEFAULT_SIZE, 50, Short.MAX_VALUE));
         pack();
     }
 }

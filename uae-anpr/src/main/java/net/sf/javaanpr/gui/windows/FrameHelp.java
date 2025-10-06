@@ -17,10 +17,10 @@
 package net.sf.javaanpr.gui.windows;
 
 import net.sf.javaanpr.configurator.Configurator;
-import org.jdesktop.layout.GroupLayout;
-import org.jdesktop.layout.LayoutStyle;
 
 import javax.swing.*;
+import javax.swing.GroupLayout;
+import javax.swing.LayoutStyle;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.io.IOException;
@@ -75,16 +75,19 @@ public class FrameHelp extends JFrame {
 
         GroupLayout layout = new GroupLayout(getContentPane());
         getContentPane().setLayout(layout);
-        layout.setHorizontalGroup(layout.createParallelGroup(GroupLayout.LEADING)
-                .add(layout.createSequentialGroup().addContainerGap()
-                        .add(layout.createParallelGroup(GroupLayout.LEADING)
-                                .add(GroupLayout.TRAILING, helpWindowClose)
-                                .add(jScrollPane1, GroupLayout.DEFAULT_SIZE, 514, Short.MAX_VALUE))
+        layout.setHorizontalGroup(layout.createParallelGroup(GroupLayout.Alignment.LEADING)
+                .addGroup(layout.createSequentialGroup().addContainerGap()
+                        .addGroup(layout.createParallelGroup(GroupLayout.Alignment.LEADING)
+                                .addComponent(jScrollPane1, GroupLayout.DEFAULT_SIZE, 514, Short.MAX_VALUE)
+                                .addGroup(GroupLayout.Alignment.TRAILING, layout.createSequentialGroup()
+                                        .addGap(0, 0, Short.MAX_VALUE)
+                                        .addComponent(helpWindowClose)))
                         .addContainerGap()));
-        layout.setVerticalGroup(layout.createParallelGroup(GroupLayout.LEADING).add(GroupLayout.TRAILING,
-                layout.createSequentialGroup().addContainerGap()
-                        .add(jScrollPane1, GroupLayout.DEFAULT_SIZE, 461, Short.MAX_VALUE)
-                        .addPreferredGap(LayoutStyle.RELATED).add(helpWindowClose).addContainerGap()));
+        layout.setVerticalGroup(layout.createParallelGroup(GroupLayout.Alignment.LEADING)
+                .addGroup(GroupLayout.Alignment.TRAILING, layout.createSequentialGroup().addContainerGap()
+                        .addComponent(jScrollPane1, GroupLayout.DEFAULT_SIZE, 461, Short.MAX_VALUE)
+                        .addPreferredGap(LayoutStyle.ComponentPlacement.RELATED)
+                        .addComponent(helpWindowClose).addContainerGap()));
         pack();
     }
 
