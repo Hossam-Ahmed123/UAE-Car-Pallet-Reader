@@ -2,6 +2,7 @@ package com.uae.anpr.service;
 
 import com.uae.anpr.dto.PlateResponse;
 import com.uae.anpr.dto.PlateResult;
+import com.uae.anpr.model.RecognitionResponse;
 import com.uae.anpr.util.EmirateParser;
 import com.uae.anpr.util.ImageUtils;
 import org.bytedeco.javacpp.indexer.UByteRawIndexer;
@@ -15,6 +16,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.awt.image.BufferedImage;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -23,9 +25,11 @@ public class PlateService {
     private static final Logger log = LoggerFactory.getLogger(PlateService.class);
 
     private final OcrService ocr;
+    private final RecognitionService recognitionService;
 
-    public PlateService(OcrService ocr) {
+    public PlateService(OcrService ocr, RecognitionService recognitionService) {
         this.ocr = ocr;
+        this.recognitionService = recognitionService;
     }
 
     public PlateResponse recognize(byte[] imageBytes) {
@@ -68,7 +72,19 @@ public class PlateService {
             log.info("Best result: number='{}', letter='{}', emirate='{}'",
                     bestResult.number(), bestResult.letter(), bestResult.emirate());
 
-            return PlateResponse.of(bestResult);
+            PlateResult fallbackResult = null;
+            if (needsFallback(bestResult)) {
+                fallbackResult = tryJavaAnprFallback(enhanced.empty() ? src : enhanced, bestResult);
+            }
+
+            PlateResult finalResult = selectResultWithFallback(bestResult, fallbackResult);
+
+            if (finalResult != bestResult) {
+                log.info("JavaANPR fallback improved result: number='{}', letter='{}', emirate='{}'",
+                        finalResult.number(), finalResult.letter(), finalResult.emirate());
+            }
+
+            return PlateResponse.of(finalResult);
 
         } catch (Exception e) {
             log.error("Error during plate recognition", e);
@@ -438,6 +454,150 @@ public class PlateService {
         }
 
         return score;
+    }
+
+    private boolean needsFallback(PlateResult result) {
+        if (result == null) {
+            return true;
+        }
+
+        boolean missingDigits = result.number() == null || result.number().replaceAll("\\D+", "").isBlank();
+        boolean missingLetter = result.letter() == null || result.letter().isBlank();
+        boolean unknownEmirate = result.emirate() == null || result.emirate().isBlank() || "Unknown".equalsIgnoreCase(result.emirate());
+
+        return confidence(result) <= 3 || (missingDigits && missingLetter) || (missingDigits && unknownEmirate);
+    }
+
+    private PlateResult selectResultWithFallback(PlateResult primary, PlateResult fallback) {
+        if (fallback == null) {
+            return primary;
+        }
+
+        if (primary == null) {
+            return fallback;
+        }
+
+        PlateResult merged = mergeResults(primary, fallback);
+
+        int mergedConfidence = confidence(merged);
+        int primaryConfidence = confidence(primary);
+        int fallbackConfidence = confidence(fallback);
+
+        if (mergedConfidence >= Math.max(primaryConfidence, fallbackConfidence)) {
+            return merged;
+        }
+
+        return (fallbackConfidence > primaryConfidence) ? fallback : primary;
+    }
+
+    private PlateResult mergeResults(PlateResult primary, PlateResult fallback) {
+        if (primary == null) {
+            return fallback;
+        }
+        if (fallback == null) {
+            return primary;
+        }
+
+        String number = chooseBetterNumber(primary.number(), fallback.number());
+        String letter = chooseBetterLetter(primary.letter(), fallback.letter());
+        String emirate = chooseBetterEmirate(primary.emirate(), fallback.emirate());
+        String diagnostics = combineDiagnostics(primary.rawText(), fallback.rawText());
+
+        return new PlateResult(number, letter, emirate, diagnostics);
+    }
+
+    private String chooseBetterNumber(String primary, String fallback) {
+        String cleanPrimary = cleanDigits(primary);
+        String cleanFallback = cleanDigits(fallback);
+
+        if (cleanPrimary.isBlank()) {
+            return cleanFallback;
+        }
+        if (cleanFallback.isBlank()) {
+            return cleanPrimary;
+        }
+
+        return cleanFallback.length() > cleanPrimary.length() ? cleanFallback : cleanPrimary;
+    }
+
+    private String chooseBetterLetter(String primary, String fallback) {
+        String cleanedPrimary = cleanLetter(primary);
+        String cleanedFallback = cleanLetter(fallback);
+
+        if (cleanedPrimary.isBlank()) {
+            return cleanedFallback;
+        }
+        if (cleanedFallback.isBlank()) {
+            return cleanedPrimary;
+        }
+
+        if (cleanedPrimary.equals(cleanedFallback)) {
+            return cleanedPrimary;
+        }
+
+        return cleanedPrimary;
+    }
+
+    private String chooseBetterEmirate(String primary, String fallback) {
+        boolean primaryKnown = primary != null && !primary.isBlank() && !"Unknown".equalsIgnoreCase(primary);
+        boolean fallbackKnown = fallback != null && !fallback.isBlank() && !"Unknown".equalsIgnoreCase(fallback);
+
+        if (primaryKnown) {
+            return primary;
+        }
+        if (fallbackKnown) {
+            return fallback;
+        }
+
+        return (primary != null && !primary.isBlank()) ? primary : fallback;
+    }
+
+    private String combineDiagnostics(String primary, String fallback) {
+        List<String> parts = new ArrayList<>();
+        if (primary != null && !primary.isBlank()) {
+            parts.add(primary);
+        }
+        if (fallback != null && !fallback.isBlank()) {
+            parts.add(fallback);
+        }
+        return String.join(" || ", parts);
+    }
+
+    private PlateResult tryJavaAnprFallback(Mat source, PlateResult currentBest) {
+        try {
+            BufferedImage buffered = ImageUtils.toBufferedImage(source);
+            RecognitionResponse response = recognitionService.recognize(buffered);
+            if (response == null || response.plate() == null || response.plate().isBlank()) {
+                return null;
+            }
+
+            String recognized = response.plate().trim();
+            EmirateParser.Parsed parsed = EmirateParser.parse(recognized);
+
+            String digits = cleanDigits(recognized);
+            if (!digits.isBlank()) {
+                parsed.number = digits;
+            }
+
+            String lettersOnly = recognized.replaceAll("[^A-Za-z]", "");
+            String letter = cleanLetter(lettersOnly);
+            if (!letter.isBlank()) {
+                parsed.letter = letter;
+            }
+
+            if (parsed.emirate == null || parsed.emirate.isBlank()) {
+                parsed.emirate = currentBest != null ? currentBest.emirate() : "Unknown";
+            }
+
+            String diagnostics = String.format("JAVAANPR_FALLBACK | RAW=%s | DURATION=%dms",
+                    recognized,
+                    response.durationMillis());
+
+            return new PlateResult(parsed.number, parsed.letter, parsed.emirate, diagnostics);
+        } catch (Exception e) {
+            log.debug("JavaANPR fallback failed: {}", e.getMessage());
+            return null;
+        }
     }
 
     private static String normalizeLetter(String s) {
