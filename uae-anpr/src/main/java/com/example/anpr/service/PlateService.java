@@ -543,6 +543,10 @@ public class PlateService {
         // Enhanced extraction with multiple attempts
         String digits = extractDigitsSimple(right);
         String emirate = extractEmirateSimple(left);
+        List<String> emirateCandidates = new ArrayList<>();
+        if (emirate != null && !emirate.isBlank()) {
+            emirateCandidates.add(emirate);
+        }
         String letter = extractLetterSimple(left);
 
         // Use enhanced emirate parser with confidence
@@ -552,19 +556,106 @@ public class PlateService {
 
         // Fallback: if emirate still unknown, try to detect from the entire plate
         if ("Unknown".equals(parsed.emirate)) {
-            String fullPlateText = ocr.ocrEmirate(ImageUtils.toBufferedImage(plate));
-            EmirateParser.Parsed fullParsed = EmirateParser.parseWithConfidence(fullPlateText);
-            if (!"Unknown".equals(fullParsed.emirate)) {
-                parsed.emirate = fullParsed.emirate;
+            List<String> topBand = extractTopBandEmirateTexts(plate);
+            emirateCandidates.addAll(topBand);
+
+            String combinedText = combineNonBlank(emirateCandidates);
+            if (!combinedText.isBlank()) {
+                EmirateParser.Parsed combinedParsed = EmirateParser.parseWithConfidence(combinedText);
+                if (!"Unknown".equals(combinedParsed.emirate)) {
+                    parsed.emirate = combinedParsed.emirate;
+                }
+            }
+
+            if ("Unknown".equals(parsed.emirate)) {
+                String fullPlateText = ocr.ocrEmirate(ImageUtils.toBufferedImage(plate));
+                if (fullPlateText != null && !fullPlateText.isBlank()) {
+                    emirateCandidates.add(fullPlateText);
+                }
+                EmirateParser.Parsed fullParsed = EmirateParser.parseWithConfidence(fullPlateText);
+                if (!"Unknown".equals(fullParsed.emirate)) {
+                    parsed.emirate = fullParsed.emirate;
+                }
+            }
+
+            if ("Unknown".equals(parsed.emirate)) {
+                String heuristic = enhancedEmirateDetection(combineNonBlank(emirateCandidates));
+                if (!"Unknown".equals(heuristic)) {
+                    parsed.emirate = heuristic;
+                }
             }
         }
 
         String diagnostics = String.format(
-                "SIMPLE | SPLIT=%d/%d | DIGITS_RAW=%s | DIGITS=%s | LETTER_RAW=%s | LETTER=%s | EMIRATE_RAW=%s | EMIRATE=%s",
-                splitPoint, W, digits, parsed.number, letter, parsed.letter, emirate, parsed.emirate
+                "SIMPLE | SPLIT=%d/%d | DIGITS_RAW=%s | DIGITS=%s | LETTER_RAW=%s | LETTER=%s | EMIRATE_RAW=%s | EMIRATE_TOP=%s | EMIRATE=%s",
+                splitPoint, W, digits, parsed.number, letter, parsed.letter, emirate,
+                joinAdditionalEmirateCandidates(emirateCandidates, emirate),
+                parsed.emirate
         );
 
         return new PlateResult(parsed.number, parsed.letter, parsed.emirate, diagnostics);
+    }
+
+    private List<String> extractTopBandEmirateTexts(Mat plate) {
+        List<String> results = new ArrayList<>();
+        if (plate == null || plate.empty()) {
+            return results;
+        }
+
+        int width = plate.cols();
+        int height = plate.rows();
+        int topHeight = Math.max(height / 3, 1);
+
+        Rect topRect = new Rect(0, 0, width, topHeight);
+        Mat topBand = new Mat(plate, topRect).clone();
+        try {
+            Mat preparedTop = ImageUtils.prepareDubaiEmirate(topBand);
+            try {
+                results.add(ocr.ocrEmirate(ImageUtils.toBufferedImage(preparedTop)));
+            } finally {
+                preparedTop.release();
+            }
+
+            Mat topHighContrast = ImageUtils.createHighContrast(ImageUtils.toGray(topBand));
+            try {
+                results.add(ocr.ocrEmirate(ImageUtils.toBufferedImage(topHighContrast)));
+            } finally {
+                topHighContrast.release();
+            }
+
+            Mat topEnhanced = ImageUtils.enhanceForOCR(ImageUtils.toGray(topBand));
+            try {
+                results.add(ocr.ocrEmirate(ImageUtils.toBufferedImage(topEnhanced)));
+            } finally {
+                topEnhanced.release();
+            }
+        } finally {
+            topBand.release();
+        }
+
+        Mat preparedFull = ImageUtils.prepareDubaiEmirate(plate);
+        try {
+            results.add(ocr.ocrEmirate(ImageUtils.toBufferedImage(preparedFull)));
+        } finally {
+            preparedFull.release();
+        }
+
+        return results.stream()
+                .filter(s -> s != null && !s.trim().isEmpty())
+                .collect(Collectors.toList());
+    }
+
+    private String combineNonBlank(List<String> values) {
+        return values.stream()
+                .filter(s -> s != null && !s.isBlank())
+                .collect(Collectors.joining(" | "));
+    }
+
+    private String joinAdditionalEmirateCandidates(List<String> values, String primary) {
+        return values.stream()
+                .skip(primary == null || primary.isBlank() ? 0 : 1)
+                .filter(s -> s != null && !s.isBlank())
+                .collect(Collectors.joining(" | "));
     }
 
     private int calculateAdaptiveSplit(Mat plate) {
