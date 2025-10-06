@@ -1,4 +1,4 @@
-package com.example.anpr.util;
+package com.dubaipolice.anpr.util;
 
 import java.util.HashMap;
 import java.util.Map;

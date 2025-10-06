@@ -1,4 +1,4 @@
-package com.example.anpr.config;
+package com.dubaipolice.anpr.config;
 
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Contact;

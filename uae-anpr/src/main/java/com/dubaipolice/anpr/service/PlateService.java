@@ -1,9 +1,9 @@
-package com.example.anpr.service;
+package com.dubaipolice.anpr.service;
 
-import com.example.anpr.dto.PlateResponse;
-import com.example.anpr.dto.PlateResult;
-import com.example.anpr.util.EmirateParser;
-import com.example.anpr.util.ImageUtils;
+import com.dubaipolice.anpr.dto.PlateResponse;
+import com.dubaipolice.anpr.dto.PlateResult;
+import com.dubaipolice.anpr.util.EmirateParser;
+import com.dubaipolice.anpr.util.ImageUtils;
 import org.bytedeco.javacpp.indexer.UByteRawIndexer;
 import org.bytedeco.opencv.opencv_core.Mat;
 import org.bytedeco.opencv.opencv_core.MatVector;
@@ -158,65 +158,84 @@ public class PlateService {
             Rect roi = ImageUtils.tryFindPlateROI(original);
             Mat plate = (roi != null ? new Mat(original, roi) : original).clone();
 
-            // Normalise plate dimensions for deterministic crops
-            Mat normalised = ImageUtils.prepareDubaiPlate(plate);
-
-            if (normalised.empty()) {
+            List<Mat> searchLevels = ImageUtils.generateDubaiPlateLevels(plate, 10);
+            if (searchLevels.isEmpty()) {
                 return null;
             }
 
-            // Expected layout:
-            // ┌───────────────┬─────┐
-            // │  Emirate text │ Ltr │  <- top band (~38% height)
-            // ├───────────────┴─────┤
-            // │       Digits        │  <- bottom band
-            // └─────────────────────┘
-            Rect topBand = ImageUtils.relativeRect(normalised, 0.0, 0.0, 1.0, 0.38);
-            Rect digitsBand = ImageUtils.relativeRect(normalised, 0.06, 0.38, 0.88, 0.58);
-            Rect letterRect = ImageUtils.relativeRect(normalised, 0.72, 0.05, 0.25, 0.30);
+            PlateResult bestResult = null;
+            int bestScore = -1;
 
-            Mat top = new Mat(normalised, topBand).clone();
-            Mat digitsRegion = new Mat(normalised, digitsBand).clone();
-            Mat letterRegion = new Mat(normalised, letterRect).clone();
+            for (int level = 0; level < searchLevels.size(); level++) {
+                Mat normalised = searchLevels.get(level);
+                if (normalised == null || normalised.empty()) {
+                    continue;
+                }
 
-            // Digits : combine multiple aggressive preprocessings
-            List<String> digitCandidates = new ArrayList<>();
-            for (Mat m : ImageUtils.generateDigitVariants(digitsRegion)) {
-                digitCandidates.add(ocr.ocrDigits(ImageUtils.toBufferedImage(m)));
+                // Expected layout:
+                // ┌───────────────┬─────┐
+                // │  Emirate text │ Ltr │  <- top band (~38% height)
+                // ├───────────────┴─────┤
+                // │       Digits        │  <- bottom band
+                // └─────────────────────┘
+                Rect topBand = ImageUtils.relativeRect(normalised, 0.0, 0.0, 1.0, 0.38);
+                Rect digitsBand = ImageUtils.relativeRect(normalised, 0.06, 0.38, 0.88, 0.58);
+                Rect letterRect = ImageUtils.relativeRect(normalised, 0.72, 0.05, 0.25, 0.30);
+
+                Mat top = new Mat(normalised, topBand).clone();
+                Mat digitsRegion = new Mat(normalised, digitsBand).clone();
+                Mat letterRegion = new Mat(normalised, letterRect).clone();
+
+                // Digits : combine multiple aggressive preprocessings
+                List<String> digitCandidates = new ArrayList<>();
+                for (Mat m : ImageUtils.generateDigitVariants(digitsRegion)) {
+                    digitCandidates.add(ocr.ocrDigits(ImageUtils.toBufferedImage(m)));
+                }
+                String digits = selectBestDigits(digitCandidates);
+
+                // Letter : focus on single character area with multiple crops
+                List<String> letterCandidates = new ArrayList<>();
+                letterCandidates.add(normalizeLetter(ocr.ocrLetters(ImageUtils.toBufferedImage(ImageUtils.prepareDubaiLetter(letterRegion)))));
+                for (Mat variant : ImageUtils.generateDubaiLetterVariants(normalised)) {
+                    letterCandidates.add(normalizeLetter(ocr.ocrLetters(ImageUtils.toBufferedImage(variant))));
+                }
+                String letter = majorityLetter(letterCandidates.toArray(new String[0]));
+
+                // Emirate : use entire top band and whole plate for redundancy
+                String emirateCombined = String.join(" ", Arrays.asList(
+                        ocr.ocrEmirate(ImageUtils.toBufferedImage(ImageUtils.prepareDubaiEmirate(top))),
+                        ocr.ocrEmirate(ImageUtils.toBufferedImage(ImageUtils.prepareDubaiEmirate(normalised)))
+                ));
+
+                EmirateParser.Parsed parsed = parseAndValidate(emirateCombined, digits, letter);
+
+                String diagnostics = String.format(
+                        "DUBAI_HEURISTIC | LEVEL=%d/%d | SRC=%dx%d | ROI=%s | DIGITS=%s | LETTER=%s | EMIRATE=%s",
+                        level + 1,
+                        searchLevels.size(),
+                        original.cols(),
+                        original.rows(),
+                        roi != null ? roi.width() + "x" + roi.height() : "FULL",
+                        digits,
+                        letter,
+                        emirateCombined
+                );
+
+                if (parsed != null && parsed.number != null && parsed.number.length() >= 4) {
+                    PlateResult candidate = new PlateResult(parsed.number, parsed.letter, parsed.emirate, diagnostics);
+                    int score = scoreDubaiCandidate(parsed, digits, letter, emirateCombined);
+                    if (score > bestScore) {
+                        bestScore = score;
+                        bestResult = candidate;
+                    }
+
+                    if (bestScore >= 10) {
+                        break;
+                    }
+                }
             }
-            String digits = selectBestDigits(digitCandidates);
 
-            // Letter : focus on single character area with multiple crops
-            List<String> letterCandidates = new ArrayList<>();
-            letterCandidates.add(normalizeLetter(ocr.ocrLetters(ImageUtils.toBufferedImage(ImageUtils.prepareDubaiLetter(letterRegion)))));
-            for (Mat variant : ImageUtils.generateDubaiLetterVariants(normalised)) {
-                letterCandidates.add(normalizeLetter(ocr.ocrLetters(ImageUtils.toBufferedImage(variant))));
-            }
-            String letter = majorityLetter(letterCandidates.toArray(new String[0]));
-
-            // Emirate : use entire top band and whole plate for redundancy
-            String emirateCombined = String.join(" ", Arrays.asList(
-                    ocr.ocrEmirate(ImageUtils.toBufferedImage(ImageUtils.prepareDubaiEmirate(top))),
-                    ocr.ocrEmirate(ImageUtils.toBufferedImage(ImageUtils.prepareDubaiEmirate(normalised)))
-            ));
-
-            EmirateParser.Parsed parsed = parseAndValidate(emirateCombined, digits, letter);
-
-            String diagnostics = String.format(
-                    "DUBAI_HEURISTIC | SRC=%dx%d | ROI=%s | DIGITS=%s | LETTER=%s | EMIRATE=%s",
-                    original.cols(),
-                    original.rows(),
-                    roi != null ? roi.width() + "x" + roi.height() : "FULL",
-                    digits,
-                    letter,
-                    emirateCombined
-            );
-
-            // Only accept when we have convincing results, otherwise fall back to other strategies
-            if (parsed != null && parsed.number != null && parsed.number.length() >= 4) {
-                return new PlateResult(parsed.number, parsed.letter, parsed.emirate, diagnostics);
-            }
-            return null;
+            return bestResult;
 
         } catch (Exception e) {
             log.debug("Dubai heuristic failed: {}", e.getMessage());
@@ -297,6 +316,39 @@ public class PlateService {
         }
 
         return parsed;
+    }
+
+    private int scoreDubaiCandidate(EmirateParser.Parsed parsed, String digitsRaw, String letterRaw, String emirateRaw) {
+        int score = 0;
+
+        String parsedNumber = parsed != null && parsed.number != null ? parsed.number : "";
+        String digitsClean = digitsRaw != null ? digitsRaw.replaceAll("\\D+", "") : "";
+
+        if (!parsedNumber.isBlank()) {
+            score += Math.min(5, parsedNumber.replaceAll("\\D+", "").length());
+        } else if (!digitsClean.isBlank()) {
+            score += Math.min(4, digitsClean.length());
+        }
+
+        String parsedLetter = parsed != null ? parsed.letter : null;
+        if (parsedLetter != null && !parsedLetter.isBlank()) {
+            score += 2;
+        } else if (letterRaw != null && !letterRaw.isBlank()) {
+            score += 1;
+        }
+
+        String parsedEmirate = parsed != null ? parsed.emirate : null;
+        if (parsedEmirate != null && !parsedEmirate.isBlank() && !"Unknown".equalsIgnoreCase(parsedEmirate)) {
+            score += 2;
+        } else if (emirateRaw != null && emirateRaw.toUpperCase().contains("DUBAI")) {
+            score += 1;
+        }
+
+        if (digitsClean.length() >= 5) {
+            score += 1;
+        }
+
+        return score;
     }
 
     private String enhancedEmirateDetection(String emirateRaw) {

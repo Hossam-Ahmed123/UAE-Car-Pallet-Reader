@@ -1,8 +1,8 @@
-package com.example.anpr.web;
+package com.dubaipolice.anpr.web;
 
-import com.example.anpr.dto.PlateResponse;
-import com.example.anpr.dto.PlateResult;
-import com.example.anpr.service.PlateService;
+import com.dubaipolice.anpr.dto.PlateResponse;
+import com.dubaipolice.anpr.dto.PlateResult;
+import com.dubaipolice.anpr.service.PlateService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;

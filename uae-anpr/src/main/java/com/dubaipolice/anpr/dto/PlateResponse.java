@@ -1,4 +1,4 @@
-package com.example.anpr.dto;
+package com.dubaipolice.anpr.dto;
 
 import io.swagger.v3.oas.annotations.media.ArraySchema;
 import io.swagger.v3.oas.annotations.media.Schema;

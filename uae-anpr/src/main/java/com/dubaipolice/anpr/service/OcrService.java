@@ -1,6 +1,6 @@
-package com.example.anpr.service;
+package com.dubaipolice.anpr.service;
 
-import com.example.anpr.util.ImageUtils;
+import com.dubaipolice.anpr.util.ImageUtils;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -20,8 +20,8 @@ import org.springframework.stereotype.Service;
 
 import javax.imageio.ImageIO;
 
-import static com.example.anpr.util.ImageUtils.readMat;
-import static com.example.anpr.util.ImageUtils.toBufferedImage;
+import static com.dubaipolice.anpr.util.ImageUtils.readMat;
+import static com.dubaipolice.anpr.util.ImageUtils.toBufferedImage;
 
 @Service
 public class OcrService {
