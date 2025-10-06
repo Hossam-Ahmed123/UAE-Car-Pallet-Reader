@@ -1,44 +1,44 @@
-= UAE Automatic Number Plate Recognition Service
+= UAE OCR ANPR Service
 
-A Spring Boot 3 service that exposes the original JavaANPR recognition engine through a REST API.
+A Spring Boot 3.3 service that recognizes UAE license plates using OpenCV preprocessing and Tess4J OCR.
 
 == Requirements
 
 * Java 21
 * Maven 3.9+
+* Optional: Tesseract `eng.traineddata` and `ara.traineddata` files placed under `tessdata/` or exposed through `TESSDATA_PREFIX`
 
 == Build
 
 [source,shell]
 ----
-mvn clean package
+mvn -q -DskipTests package
 ----
 
 == Run
 
 [source,shell]
 ----
-mvn spring-boot:run
+java -jar target/uae-anpr-0.0.1-SNAPSHOT.jar
 ----
 
-The service listens on http://localhost:8080[].
+The service listens on http://localhost:9090[].
 
 == API
 
 === Recognize a plate image
 
 * **Method:** `POST`
-* **Path:** `/api/v1/recognitions`
+* **Path:** `/api/v1/plates/recognize`
 * **Content-Type:** `multipart/form-data`
-* **Body:** one part named `file` containing the plate image (`jpg`, `png`, `bmp` supported by Java ImageIO)
+* **Body:** one part named `image` containing the plate or vehicle photo
 
 Example request using `curl`:
 
 [source,shell]
 ----
-curl -X POST "http://localhost:8080/api/v1/recognitions" \
-  -H "accept: application/json" \
-  -F "file=@sample.jpg"
+curl -X POST "http://localhost:9090/api/v1/plates/recognize" \
+  -F "image=@sample.jpg"
 ----
 
 Example response:
@@ -46,18 +46,30 @@ Example response:
 [source,json]
 ----
 {
-  "plate": "A12345",
-  "durationMillis": 184
+  "results": [
+    {
+      "number": "97344",
+      "letter": "F",
+      "emirate": "Dubai",
+      "rawText": "STAGE=FULL_IMAGE | DIGITS=97344 | LETTER=F | EMIRATE=Dubai"
+    }
+  ]
 }
 ----
 
 == Swagger UI
 
-Swagger UI is available at http://localhost:8080/swagger-ui.html[].
+Swagger UI is available at http://localhost:9090/swagger-ui/index.html[].
 
-== Error handling
+== Configuration
 
-Errors are reported as JSON with a timestamp, HTTP status, reason, message, and request path.
+Tesseract settings can be adjusted in `application.yml`. By default the service searches for tessdata files in `${user.dir}/tessdata` or the `TESSDATA_PREFIX` environment variable.
+
+== Features
+
+* Multiple OpenCV preprocessing strategies for digits, letters, and emirate text.
+* Dubai style heuristics with multi-level search for challenging plates.
+* Automatic confidence ranking of recognition candidates.
 
 == License
 
