@@ -446,7 +446,8 @@ public class ImageUtils {
     public static Mat prepareDubaiLetter(Mat letterRegion) {
         Mat gray = ensureHeight(toGray(letterRegion), 160, 260);
         Mat enhanced = enhanceForSmallText(gray);
-        return createHighContrast(enhanced);
+        Mat binary = createHighContrast(enhanced);
+        return removeBorderNoise(binary);
     }
 
     public static Mat prepareDubaiEmirate(Mat emirateRegion) {
@@ -461,6 +462,40 @@ public class ImageUtils {
         Mat adaptive = adaptive(clahe);
         Mat denoised = removeBorderNoise(adaptive);
         return denoised;
+    }
+
+    public static List<Mat> generateDubaiLetterVariants(Mat plate) {
+        List<Mat> variants = new ArrayList<>();
+        if (plate == null || plate.empty()) {
+            return variants;
+        }
+
+        double[][] rects = new double[][]{
+                {0.70, 0.05, 0.26, 0.55},
+                {0.68, 0.10, 0.28, 0.50},
+                {0.72, 0.20, 0.22, 0.55}
+        };
+
+        for (double[] r : rects) {
+            Rect rect = relativeRect(plate, r[0], r[1], r[2], r[3]);
+            if (rect.width() <= 0 || rect.height() <= 0) {
+                continue;
+            }
+            Mat region = new Mat(plate, rect).clone();
+            Mat prepared = prepareDubaiLetter(region);
+            variants.add(prepared);
+            variants.add(invertImage(prepared));
+        }
+
+        Rect topBand = relativeRect(plate, 0.58, 0.00, 0.40, 0.40);
+        if (topBand.width() > 0 && topBand.height() > 0) {
+            Mat topRegion = new Mat(plate, topBand).clone();
+            Mat preparedTop = prepareDubaiLetter(topRegion);
+            variants.add(preparedTop);
+            variants.add(invertImage(preparedTop));
+        }
+
+        return variants;
     }
 
 
