@@ -11,16 +11,16 @@ import org.bytedeco.opencv.opencv_core.Rect;
 import org.bytedeco.opencv.opencv_core.Size;
 import org.bytedeco.opencv.global.opencv_core;
 import org.bytedeco.opencv.global.opencv_imgproc;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 public class PlateService {
+    private static final Logger log = LoggerFactory.getLogger(PlateService.class);
 
     private final OcrService ocr;
 
@@ -29,264 +29,512 @@ public class PlateService {
     }
 
     public PlateResponse recognize(byte[] imageBytes) {
-        Mat src = ImageUtils.readMat(imageBytes);
+        try {
+            Mat src = ImageUtils.readMat(imageBytes);
 
-        PlateResult best = recognizeFrom(src, true, "ORIGINAL");
-        best = better(best, recognizeFrom(src, false, "ORIGINAL"));
+            if (src.empty()) {
+                return PlateResponse.of(new PlateResult("", "", "Unknown", "Invalid image"));
+            }
 
-        if (confidence(best) < 4 && Math.max(src.cols(), src.rows()) < 1200) {
-            PlateResult scaled = recognizeFrom(ImageUtils.resize(src, 1.5), true, "UPSCALED");
-            best = better(best, scaled);
+            log.info("Processing image: {}x{}, channels: {}", src.cols(), src.rows(), src.channels());
+
+            // For small images, use direct processing without complex ROI detection
+            if (src.cols() <= 300 && src.rows() <= 100) {
+                log.info("Small image detected, using direct processing");
+                return processSmallImage(src);
+            }
+
+            // For larger images, try multiple strategies
+            List<PlateResult> allResults = new ArrayList<>();
+
+            // Strategy 1: Original image with ROI detection
+            PlateResult result1 = recognizeFrom(src, true, "ROI_DETECTION");
+            allResults.add(result1);
+
+            // Strategy 2: Full image without ROI
+            PlateResult result2 = recognizeFrom(src, false, "FULL_IMAGE");
+            allResults.add(result2);
+
+            // Strategy 3: Enhanced image
+            Mat enhanced = ImageUtils.preprocessUaePlate(src);
+            PlateResult result3 = recognizeFrom(enhanced, false, "ENHANCED");
+            allResults.add(result3);
+
+            // Select the best result
+            PlateResult bestResult = allResults.stream()
+                    .filter(Objects::nonNull)
+                    .max(Comparator.comparingInt(this::confidence))
+                    .orElse(new PlateResult("", "", "Unknown", "No results"));
+
+            log.info("Best result: number='{}', letter='{}', emirate='{}'",
+                    bestResult.number(), bestResult.letter(), bestResult.emirate());
+
+            return PlateResponse.of(bestResult);
+
+        } catch (Exception e) {
+            log.error("Error during plate recognition", e);
+            return PlateResponse.of(new PlateResult("", "", "Unknown", "Error: " + e.getMessage()));
         }
+    }
 
-        return PlateResponse.of(best);
+    private PlateResponse processSmallImage(Mat src) {
+        try {
+            // Direct processing for small images
+            Mat enhanced = ImageUtils.enhanceUaePlateRegion(src);
+            enhanced = ImageUtils.ensureHeight(enhanced, 80, 200);
+
+            PlateResult result = analyzePlateSimple(enhanced);
+            return PlateResponse.of(result);
+
+        } catch (Exception e) {
+            log.error("Error processing small image", e);
+            return PlateResponse.of(new PlateResult("", "", "Unknown", "Small image processing failed"));
+        }
     }
 
     private PlateResult recognizeFrom(Mat src, boolean tryRoi, String stageLabel) {
-        Rect roi = tryRoi ? ImageUtils.tryFindPlateROI(src) : null;
-        Mat plate = (roi != null) ? new Mat(src, roi).clone() : src.clone();
-        Mat normalized = ImageUtils.ensureHeight(plate, 240, 720);
-        String stage = stageLabel + (roi != null ? "_CROP" : "_FULL");
-        return analyzePlate(normalized, roi, stage);
+        try {
+            Rect roi = tryRoi ? ImageUtils.tryFindPlateROI(src) : null;
+            Mat plate = (roi != null) ? new Mat(src, roi).clone() : src.clone();
+
+            // Enhanced plate preprocessing
+            Mat enhancedPlate = ImageUtils.enhanceUaePlateRegion(plate);
+            enhancedPlate = ImageUtils.ensureHeight(enhancedPlate, 120, 480);
+
+            String stage = stageLabel + (roi != null ? "_CROP" : "_FULL");
+            return analyzePlate(enhancedPlate, roi, stage);
+
+        } catch (Exception e) {
+            log.warn("Recognition failed for stage {}: {}", stageLabel, e.getMessage());
+            return new PlateResult("", "", "Unknown", "Stage " + stageLabel + " failed");
+        }
     }
 
     private PlateResult analyzePlate(Mat plate, Rect roi, String stage) {
-        Mat plateGray = ImageUtils.toGray(plate);
         int W = plate.cols();
         int H = plate.rows();
 
-        int estimatedSplit = estimateLeftBandWidth(plateGray);
-        int minLeft = Math.max(20, (int) (W * 0.18));
-        int maxLeft = Math.max(minLeft + 1, W - 40);
-        int leftW = Math.max(minLeft, Math.min(estimatedSplit, maxLeft));
-        if (W - leftW < 40) {
-            leftW = Math.max(1, W - 40);
-        }
-        leftW = Math.min(leftW, W - 1);
-        Rect leftRect = new Rect(0, 0, leftW, H);
-        Rect rightRect = new Rect(leftW, 0, W - leftW, H);
+        log.debug("Analyzing plate: {}x{}, stage: {}", W, H, stage);
+
+        // Simple split for UAE plates (typically 30% left for emirate/letter, 70% right for digits)
+        int splitPoint = (int) (W * 0.3);
+        splitPoint = Math.max(20, Math.min(splitPoint, W - 40));
+
+        Rect leftRect = new Rect(0, 0, splitPoint, H);
+        Rect rightRect = new Rect(splitPoint, 0, W - splitPoint, H);
 
         Mat left = new Mat(plate, leftRect).clone();
         Mat right = new Mat(plate, rightRect).clone();
 
-        Mat leftGray = ImageUtils.toGray(left);
-        Mat leftBin = ImageUtils.adaptive(leftGray);
-        Mat leftInv = new Mat();
-        opencv_core.bitwise_not(leftBin, leftInv);
-        Mat kernel = opencv_imgproc.getStructuringElement(opencv_imgproc.MORPH_RECT,
-                new org.bytedeco.opencv.opencv_core.Size(2, 2));
-        Mat leftThick = new Mat();
-        opencv_imgproc.dilate(leftBin, leftThick, kernel);
-        Mat leftThin = new Mat();
-        opencv_imgproc.erode(leftBin, leftThin, kernel);
-        Mat letterCrop = cropLetterRegion(leftBin);
-        Mat letterCropInv = new Mat();
-        opencv_core.bitwise_not(letterCrop, letterCropInv);
+        // Extract components
+        String digits = extractDigitsEnhanced(right);
+        String emirate = extractEmirateEnhanced(left);
+        String letter = extractLetterEnhanced(left);
 
-        Mat rightGray = ImageUtils.toGray(right);
-        Mat rightBin = ImageUtils.enhanceForOCR(rightGray);
-        Mat rightClose = new Mat();
-        opencv_imgproc.morphologyEx(rightBin, rightClose, opencv_imgproc.MORPH_CLOSE,
-                opencv_imgproc.getStructuringElement(opencv_imgproc.MORPH_RECT,
-                        new org.bytedeco.opencv.opencv_core.Size(3, 3)));
+        // Parse and validate results
+        EmirateParser.Parsed parsed = parseAndValidate(emirate, digits, letter);
 
-        String digitsA = ocr.ocrDigits(ImageUtils.toBufferedImage(rightBin));
-        String digitsB = ocr.ocrDigits(ImageUtils.toBufferedImage(rightClose));
-        String digitsRaw = bestDigits(digitsA, digitsB);
-
-        String emirA = ocr.ocrEmirate(ImageUtils.toBufferedImage(leftBin));
-        String emirB = ocr.ocrEmirate(ImageUtils.toBufferedImage(leftInv));
-        String emirC = ocr.ocrEmirate(ImageUtils.toBufferedImage(leftThick));
-        String emirD = ocr.ocrEmirate(ImageUtils.toBufferedImage(ImageUtils.enhanceForOCR(leftGray)));
-        String emirateRaw = String.join(" | ", Arrays.asList(emirA, emirB, emirC, emirD));
-
-        String L1 = normalizeLetter(ocr.ocrLetters(ImageUtils.toBufferedImage(leftBin)));
-        String L2 = normalizeLetter(ocr.ocrLetters(ImageUtils.toBufferedImage(leftInv)));
-        String L3 = normalizeLetter(ocr.ocrLetters(ImageUtils.toBufferedImage(leftThick)));
-        String L4 = normalizeLetter(ocr.ocrLetters(ImageUtils.toBufferedImage(leftThin)));
-        String L5 = normalizeLetter(ocr.ocrLetters(ImageUtils.toBufferedImage(letterCrop)));
-        String L6 = normalizeLetter(ocr.ocrLetters(ImageUtils.toBufferedImage(letterCropInv)));
-        String letter = majorityLetter(L1, L2, L3, L4, L5, L6);
-
-        EmirateParser.Parsed parsed = EmirateParser.parse(emirateRaw + " " + digitsRaw + " " + letter);
-        if ("Unknown".equals(parsed.emirate)) {
-            String t = (emirateRaw + " " + digitsRaw).toUpperCase();
-            if (t.contains("DUBAI") || t.contains("دبي")) parsed.emirate = "Dubai";
-            if (t.contains("ABU DHABI") || t.contains("ابوظبي") || t.contains("أبوظبي")) parsed.emirate = "Abu Dhabi";
-            if (t.contains("SHARJAH") || t.contains("الشارقة")) parsed.emirate = "Sharjah";
-            if (t.contains("AJMAN") || t.contains("عجمان")) parsed.emirate = "Ajman";
-        }
-
-        String number = digitsRaw.replaceAll("\\D+", "");
-        parsed.number = number.isBlank() ? parsed.number : number;
-        parsed.letter = (letter == null || letter.isBlank()) ? parsed.letter : letter;
-
-        String diagnostics = "STAGE=" + stage
-                + (roi != null ? " ROI=" + roi.width() + "x" + roi.height() : " ROI=NONE")
-                + " | CUT=" + leftW + "/" + W
-                + " | EMIRATE_RAW=" + emirateRaw.replace('\n', ' ').trim()
-                + " | DIGITS_RAW=" + digitsRaw.trim()
-                + " | LETTERS_TRIED=" + String.join(",", Arrays.asList(L1, L2, L3, L4, L5, L6));
+        String diagnostics = String.format(
+                "STAGE=%s | ROI=%s | SPLIT=%d/%d | DIGITS=%s | LETTER=%s | EMIRATE=%s",
+                stage,
+                roi != null ? roi.width() + "x" + roi.height() : "NONE",
+                splitPoint, W,
+                digits.trim(),
+                letter,
+                emirate.trim()
+        );
 
         return new PlateResult(parsed.number, parsed.letter, parsed.emirate, diagnostics);
     }
 
-    private static int estimateLeftBandWidth(Mat plateGray) {
-        Mat blur = new Mat();
-        opencv_imgproc.GaussianBlur(plateGray, blur,
-                new org.bytedeco.opencv.opencv_core.Size(3, 3), 0);
-        Mat gradX = new Mat();
-        opencv_imgproc.Sobel(blur, gradX, opencv_core.CV_16S, 1, 0, 3, 1, 0, opencv_core.BORDER_DEFAULT);
-        Mat absGrad = new Mat();
-        opencv_core.convertScaleAbs(gradX, absGrad);
 
-        int width = absGrad.cols();
-        int height = absGrad.rows();
-        int min = Math.max(10, (int) (width * 0.18));
-        int max = Math.min(width - 10, (int) (width * 0.65));
-        if (max <= min) {
-            return Math.max(10, Math.min((int) (width * 0.32), width - 10));
+    private String extractDigitsEnhanced(Mat rightRegion) {
+        List<String> digitResults = new ArrayList<>();
+
+        // Multiple processing variations
+        Mat gray = ImageUtils.toGray(rightRegion);
+
+        // Variation 1: High contrast
+        Mat highContrast = ImageUtils.createHighContrast(gray);
+        digitResults.add(ocr.ocrDigits(ImageUtils.toBufferedImage(highContrast)));
+
+        // Variation 2: Adaptive threshold
+        Mat adaptive = ImageUtils.adaptive(gray);
+        digitResults.add(ocr.ocrDigits(ImageUtils.toBufferedImage(adaptive)));
+
+        // Variation 3: Enhanced for OCR
+        Mat enhanced = ImageUtils.enhanceForOCR(gray);
+        digitResults.add(ocr.ocrDigits(ImageUtils.toBufferedImage(enhanced)));
+
+        return selectBestDigits(digitResults);
+    }
+
+    private String extractEmirateEnhanced(Mat leftRegion) {
+        List<String> emirateResults = new ArrayList<>();
+
+        Mat gray = ImageUtils.toGray(leftRegion);
+
+        // Multiple processing variations
+        emirateResults.add(ocr.ocrEmirate(ImageUtils.toBufferedImage(ImageUtils.createHighContrast(gray))));
+        emirateResults.add(ocr.ocrEmirate(ImageUtils.toBufferedImage(ImageUtils.adaptive(gray))));
+        emirateResults.add(ocr.ocrEmirate(ImageUtils.toBufferedImage(ImageUtils.enhanceForOCR(gray))));
+
+        return String.join(" | ", emirateResults.stream()
+                .filter(s -> s != null && !s.trim().isEmpty())
+                .collect(Collectors.toList()));
+    }
+
+    private String extractLetterEnhanced(Mat leftRegion) {
+        List<String> letterResults = new ArrayList<>();
+
+        Mat gray = ImageUtils.toGray(leftRegion);
+
+        // Multiple processing variations
+        letterResults.add(normalizeLetter(ocr.ocrLetters(ImageUtils.toBufferedImage(ImageUtils.createHighContrast(gray)))));
+        letterResults.add(normalizeLetter(ocr.ocrLetters(ImageUtils.toBufferedImage(ImageUtils.adaptive(gray)))));
+        letterResults.add(normalizeLetter(ocr.ocrLetters(ImageUtils.toBufferedImage(ImageUtils.enhanceForOCR(gray)))));
+
+        return majorityLetter(letterResults.toArray(new String[0]));
+    }
+
+    private EmirateParser.Parsed parseAndValidate(String emirateRaw, String digitsRaw, String letterRaw) {
+        EmirateParser.Parsed parsed = EmirateParser.parse(emirateRaw + " " + digitsRaw + " " + letterRaw);
+
+        // Enhanced emirate detection
+        if ("Unknown".equals(parsed.emirate)) {
+            parsed.emirate = enhancedEmirateDetection(emirateRaw);
         }
 
-        int best = (int) (width * 0.32);
-        double bestScore = -1;
-        try (UByteRawIndexer indexer = absGrad.createIndexer()) {
-            for (int x = min; x < max; x++) {
-                double score = 0;
-                for (int dx = -1; dx <= 1; dx++) {
-                    int col = Math.max(min, Math.min(max - 1, x + dx));
-                    for (int y = 0; y < height; y++) {
-                        score += indexer.get(y, col) & 0xFF;
-                    }
-                }
-                if (score > bestScore) {
-                    bestScore = score;
-                    best = x;
-                }
+        // Clean and validate number
+        String number = digitsRaw.replaceAll("\\D+", "");
+        if (number.length() > 5) {
+            number = number.substring(0, 5);
+        }
+        parsed.number = number.isBlank() ? parsed.number : number;
+
+        // Validate letter
+        if (letterRaw != null && letterRaw.length() == 1 && Character.isLetter(letterRaw.charAt(0))) {
+            parsed.letter = letterRaw.toUpperCase();
+        } else if (parsed.letter == null || parsed.letter.isBlank()) {
+            parsed.letter = letterRaw;
+        }
+
+        return parsed;
+    }
+
+    private String enhancedEmirateDetection(String emirateRaw) {
+        String text = emirateRaw.toUpperCase();
+
+        Map<String, String> emiratePatterns = new HashMap<>();
+        emiratePatterns.put("DUBAI", "Dubai");
+        emiratePatterns.put("دبي", "Dubai");
+        emiratePatterns.put("DXB", "Dubai");
+        emiratePatterns.put("ABU", "Abu Dhabi");
+        emiratePatterns.put("ابو", "Abu Dhabi");
+        emiratePatterns.put("SHAR", "Sharjah");
+        emiratePatterns.put("الشار", "Sharjah");
+        emiratePatterns.put("AJM", "Ajman");
+        emiratePatterns.put("عجم", "Ajman");
+        emiratePatterns.put("RAK", "Ras Al Khaimah");
+        emiratePatterns.put("رأس", "Ras Al Khaimah");
+
+        for (Map.Entry<String, String> entry : emiratePatterns.entrySet()) {
+            if (text.contains(entry.getKey())) {
+                return entry.getValue();
             }
         }
-        int defaultCut = Math.max(10, Math.min((int) (width * 0.32), width - 10));
-        int candidate = Math.max(10, Math.min(best, width - 10));
-        if (candidate <= 10 || candidate >= width - 10) {
-            candidate = defaultCut;
-        }
-        return Math.max(10, Math.min(candidate, width - 10));
+
+        return "Unknown";
     }
 
-    private PlateResult better(PlateResult current, PlateResult candidate) {
-        if (confidence(candidate) > confidence(current)) {
-            return candidate;
-        }
-        if (confidence(candidate) == confidence(current)
-                && digitScore(candidate != null ? candidate.number() : "")
-                > digitScore(current != null ? current.number() : "")) {
-            return candidate;
-        }
-        return current;
-    }
-
-    private static int confidence(PlateResult result) {
-        if (result == null) {
-            return -1;
-        }
-        int score = 0;
-        if (result.number() != null && !result.number().isBlank()) {
-            score += Math.min(5, result.number().replaceAll("\\D+", "").length());
-        }
-        if (result.letter() != null && !result.letter().isBlank()) {
-            score += 2;
-        }
-        if (result.emirate() != null && !result.emirate().isBlank()
-                && !"Unknown".equalsIgnoreCase(result.emirate())) {
-            score += 2;
-        }
-        return score;
-    }
-
-    private static String bestDigits(String... options) {
-        return Arrays.stream(options)
+    private String selectBestDigits(List<String> digitResults) {
+        return digitResults.stream()
                 .filter(Objects::nonNull)
-                .max(Comparator.comparingInt(PlateService::digitScore))
+                .max(Comparator.comparingInt(this::digitScore))
                 .orElse("");
     }
 
-    private static int digitScore(String value) {
-        if (value == null) {
-            return -1;
+    private int confidence(PlateResult result) {
+        if (result == null) return -1;
+
+        int score = 0;
+
+        // Number score (0-5 points)
+        if (result.number() != null && !result.number().isBlank()) {
+            score += Math.min(5, result.number().replaceAll("\\D+", "").length());
         }
-        return value.replaceAll("\\D+", "").length();
+
+        // Letter score (0-2 points)
+        if (result.letter() != null && !result.letter().isBlank() && result.letter().length() == 1) {
+            score += 2;
+        }
+
+        // Emirate score (0-3 points)
+        if (result.emirate() != null && !result.emirate().isBlank() && !"Unknown".equalsIgnoreCase(result.emirate())) {
+            score += 3;
+        }
+
+        return score;
+    }
+
+    private int digitScore(String value) {
+        if (value == null) return -1;
+        String numbers = value.replaceAll("\\D+", "");
+        return numbers.length();
     }
 
     private static String normalizeLetter(String s) {
         if (s == null) return "";
-        s = s.toUpperCase();
+        s = s.toUpperCase().trim();
+
+        // Common OCR corrections
         s = s.replace('0', 'O')
                 .replace('1', 'I')
                 .replace('2', 'Z')
                 .replace('5', 'S')
-                .replace('6', 'G')
-                .replace('8', 'B');
+                .replace('8', 'B')
+                .replace('6', 'G');
+
+        // Remove non-letters and take first character
         s = s.replaceAll("[^A-Z]", "");
-        if (s.length() > 2) s = s.substring(0, 2);
-        return s;
+        return s.length() > 0 ? s.substring(0, 1) : "";
     }
 
     private static String majorityLetter(String... options) {
-        Map<String,Integer> cnt = new HashMap<>();
-        for (String o: options) {
-            if (o==null || o.isBlank()) continue;
-            cnt.put(o, cnt.getOrDefault(o,0)+1);
+        Map<String, Integer> counts = new HashMap<>();
+        for (String opt : options) {
+            if (opt != null && !opt.isBlank()) {
+                counts.put(opt, counts.getOrDefault(opt, 0) + 1);
+            }
         }
-        if (cnt.isEmpty()) return "";
-        return cnt.entrySet().stream().max(Map.Entry.comparingByValue()).get().getKey();
+
+        if (counts.isEmpty()) return "";
+
+        return counts.entrySet().stream()
+                .max(Map.Entry.comparingByValue())
+                .get()
+                .getKey();
     }
 
-    private static Mat cropLetterRegion(Mat binary) {
-        if (binary == null || binary.empty()) {
-            return binary == null ? new Mat() : binary.clone();
-        }
-        Mat work = binary.clone();
-        Mat kernel = opencv_imgproc.getStructuringElement(opencv_imgproc.MORPH_RECT, new Size(3, 3));
-        opencv_imgproc.morphologyEx(work, work, opencv_imgproc.MORPH_CLOSE, kernel);
-        MatVector contours = new MatVector();
-        Mat hierarchy = new Mat();
-        opencv_imgproc.findContours(work.clone(), contours, hierarchy,
-                opencv_imgproc.RETR_EXTERNAL, opencv_imgproc.CHAIN_APPROX_SIMPLE);
 
-        Rect best = null;
-        double bestScore = 0.0;
-        int H = binary.rows();
-        int W = binary.cols();
-        for (long i = 0; i < contours.size(); i++) {
-            Rect rect = opencv_imgproc.boundingRect(contours.get(i));
-            if (rect == null || rect.width() <= 0 || rect.height() <= 0) {
-                continue;
-            }
-            double hRatio = rect.height() / (double) H;
-            double wRatio = rect.width() / (double) Math.max(W, 1);
-            if (hRatio < 0.25 || hRatio > 0.95) {
-                continue;
-            }
-            if (wRatio < 0.12 || wRatio > 0.8) {
-                continue;
-            }
-            double aspect = rect.height() / (double) Math.max(rect.width(), 1);
-            if (aspect < 0.9 || aspect > 4.8) {
-                continue;
-            }
-            double verticalCenter = (rect.y() + rect.height() / 2.0) / Math.max(H, 1);
-            double verticalScore = 1.0 - Math.min(Math.abs(verticalCenter - 0.65), 1.0);
-            double aspectScore = 1.0 - Math.min(Math.abs(aspect - 1.8) / 1.8, 0.9);
-            double score = hRatio * 0.6 + verticalScore * 0.2 + aspectScore * 0.2;
-            if (score > bestScore) {
-                bestScore = score;
-                best = rect;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    // Update the analyzePlateSimple method in PlateService.java:
+
+    private PlateResult analyzePlateSimple(Mat plate) {
+        int W = plate.cols();
+        int H = plate.rows();
+
+        // Adaptive split based on image characteristics
+        int splitPoint = calculateAdaptiveSplit(plate);
+        splitPoint = Math.max(30, Math.min(splitPoint, W - 80));
+
+        Rect leftRect = new Rect(0, 0, splitPoint, H);
+        Rect rightRect = new Rect(splitPoint, 0, W - splitPoint, H);
+
+        Mat left = new Mat(plate, leftRect).clone();
+        Mat right = new Mat(plate, rightRect).clone();
+
+        // Enhanced extraction with multiple attempts
+        String digits = extractDigitsSimple(right);
+        String emirate = extractEmirateSimple(left);
+        String letter = extractLetterSimple(left);
+
+        // Use enhanced emirate parser with confidence
+        EmirateParser.Parsed parsed = EmirateParser.parseWithConfidence(emirate);
+        parsed.number = cleanDigits(digits);
+        parsed.letter = cleanLetter(letter);
+
+        // Fallback: if emirate still unknown, try to detect from the entire plate
+        if ("Unknown".equals(parsed.emirate)) {
+            String fullPlateText = ocr.ocrEmirate(ImageUtils.toBufferedImage(plate));
+            EmirateParser.Parsed fullParsed = EmirateParser.parseWithConfidence(fullPlateText);
+            if (!"Unknown".equals(fullParsed.emirate)) {
+                parsed.emirate = fullParsed.emirate;
             }
         }
 
-        if (best != null) {
-            return new Mat(binary, best).clone();
+        String diagnostics = String.format(
+                "SIMPLE | SPLIT=%d/%d | DIGITS_RAW=%s | DIGITS=%s | LETTER_RAW=%s | LETTER=%s | EMIRATE_RAW=%s | EMIRATE=%s",
+                splitPoint, W, digits, parsed.number, letter, parsed.letter, emirate, parsed.emirate
+        );
+
+        return new PlateResult(parsed.number, parsed.letter, parsed.emirate, diagnostics);
+    }
+
+    private int calculateAdaptiveSplit(Mat plate) {
+        Mat gray = ImageUtils.toGray(plate);
+        int W = gray.cols();
+        int H = gray.rows();
+
+        // Method 1: Vertical projection to find the gap
+        int[] projection = new int[W];
+        try (UByteRawIndexer indexer = gray.createIndexer()) {
+            for (int x = 0; x < W; x++) {
+                for (int y = 0; y < H; y++) {
+                    projection[x] += (indexer.get(y, x) & 0xFF);
+                }
+            }
         }
-        return binary.clone();
+
+        // Find the point with minimum projection in the middle third
+        int start = W / 3;
+        int end = 2 * W / 3;
+        int minProjection = Integer.MAX_VALUE;
+        int bestSplit = W * 2 / 5; // Default 40%
+
+        for (int x = start; x < end; x++) {
+            if (projection[x] < minProjection) {
+                minProjection = projection[x];
+                bestSplit = x;
+            }
+        }
+
+        return bestSplit;
+    }
+
+    private String extractDigitsSimple(Mat rightRegion) {
+        List<String> results = new ArrayList<>();
+
+        Mat gray = ImageUtils.toGray(rightRegion);
+
+        // Try multiple preprocessing techniques
+        results.add(ocr.ocrDigits(ImageUtils.toBufferedImage(ImageUtils.createHighContrast(gray))));
+        results.add(ocr.ocrDigits(ImageUtils.toBufferedImage(ImageUtils.adaptive(gray))));
+        results.add(ocr.ocrDigits(ImageUtils.toBufferedImage(ImageUtils.enhanceForOCR(gray))));
+
+        // Try with morphological operations to connect broken digits
+        Mat morph = applyDigitMorphology(gray);
+        results.add(ocr.ocrDigits(ImageUtils.toBufferedImage(morph)));
+
+        return selectBestDigits(results);
+    }
+
+    private String extractEmirateSimple(Mat leftRegion) {
+        List<String> results = new ArrayList<>();
+
+        Mat gray = ImageUtils.toGray(leftRegion);
+
+        // Multiple preprocessing variations for emirate text
+        results.add(ocr.ocrEmirate(ImageUtils.toBufferedImage(ImageUtils.createHighContrast(gray))));
+        results.add(ocr.ocrEmirate(ImageUtils.toBufferedImage(ImageUtils.adaptive(gray))));
+        results.add(ocr.ocrEmirate(ImageUtils.toBufferedImage(ImageUtils.enhanceForOCR(gray))));
+
+        // Try with different thresholds for Arabic text
+        Mat arabicEnhanced = enhanceForArabicText(gray);
+        results.add(ocr.ocrEmirate(ImageUtils.toBufferedImage(arabicEnhanced)));
+
+        // Try inverted
+        Mat inverted = ImageUtils.invertImage(ImageUtils.createHighContrast(gray));
+        results.add(ocr.ocrEmirate(ImageUtils.toBufferedImage(inverted)));
+
+        return String.join(" | ", results.stream()
+                .filter(s -> s != null && !s.trim().isEmpty())
+                .collect(Collectors.toList()));
+    }
+
+    private String extractLetterSimple(Mat leftRegion) {
+        List<String> results = new ArrayList<>();
+
+        Mat gray = ImageUtils.toGray(leftRegion);
+        int H = gray.rows();
+        int W = gray.cols();
+
+        // Focus on the right part of the left region where the letter usually is
+        int letterStartX = W * 2 / 3;
+        if (letterStartX < W - 10) {
+            Rect letterRect = new Rect(letterStartX, H / 4, W - letterStartX - 5, H / 2);
+            Mat letterRegion = new Mat(gray, letterRect);
+
+            results.add(normalizeLetter(ocr.ocrLetters(ImageUtils.toBufferedImage(ImageUtils.createHighContrast(letterRegion)))));
+            results.add(normalizeLetter(ocr.ocrLetters(ImageUtils.toBufferedImage(ImageUtils.adaptive(letterRegion)))));
+        }
+
+        // Also try the entire left region
+        results.add(normalizeLetter(ocr.ocrLetters(ImageUtils.toBufferedImage(ImageUtils.createHighContrast(gray)))));
+        results.add(normalizeLetter(ocr.ocrLetters(ImageUtils.toBufferedImage(ImageUtils.adaptive(gray)))));
+
+        return majorityLetter(results.toArray(new String[0]));
+    }
+
+    private Mat applyDigitMorphology(Mat gray) {
+        Mat binary = ImageUtils.createHighContrast(gray);
+
+        // Use closing to connect broken digits
+        Mat kernel = opencv_imgproc.getStructuringElement(opencv_imgproc.MORPH_RECT, new Size(2, 2));
+        Mat morphed = new Mat();
+        opencv_imgproc.morphologyEx(binary, morphed, opencv_imgproc.MORPH_CLOSE, kernel);
+
+        return morphed;
+    }
+
+    private Mat enhanceForArabicText(Mat gray) {
+        // Special enhancement for Arabic text which might be more delicate
+        Mat enhanced = gray.clone();
+
+        // Gentle contrast enhancement
+        opencv_imgproc.equalizeHist(enhanced, enhanced);
+
+        // Light Gaussian blur to reduce noise
+        opencv_imgproc.GaussianBlur(enhanced, enhanced, new Size(1, 1), 0);
+
+        // Adaptive threshold for better text extraction
+        Mat binary = new Mat();
+        opencv_imgproc.adaptiveThreshold(enhanced, binary, 255,
+                opencv_imgproc.ADAPTIVE_THRESH_GAUSSIAN_C,
+                opencv_imgproc.THRESH_BINARY, 15, 5);
+
+        return binary;
+    }
+
+    private String cleanDigits(String digits) {
+        if (digits == null) return "";
+
+        // Remove all non-digit characters
+        String cleaned = digits.replaceAll("\\D+", "");
+
+        // UAE plates typically have 1-5 digits
+        if (cleaned.length() > 5) {
+            cleaned = cleaned.substring(0, 5);
+        }
+
+        return cleaned;
+    }
+
+    private String cleanLetter(String letter) {
+        if (letter == null || letter.isEmpty()) return "";
+
+        // Ensure it's a single uppercase letter
+        letter = letter.toUpperCase().trim();
+        letter = letter.replaceAll("[^A-Z]", "");
+
+        if (letter.length() > 1) {
+            // Take the most frequent character if multiple
+            Map<Character, Integer> freq = new HashMap<>();
+            for (char c : letter.toCharArray()) {
+                freq.put(c, freq.getOrDefault(c, 0) + 1);
+            }
+            letter = String.valueOf(freq.entrySet().stream()
+                    .max(Map.Entry.comparingByValue())
+                    .get()
+                    .getKey());
+        }
+
+        return letter;
     }
 }

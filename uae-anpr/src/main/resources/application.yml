@@ -4,5 +4,10 @@ server:
 ocr:
   tessdataPath: ${TESSDATA_PREFIX:${user.dir}/tessdata}
   lang: eng+ara
+  whitelist: "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZابجدھوزحطيكلمنسعفصقرشتثخذضظغدبيأبوظبيالشارقةعجمانرأسالخيمةالفجيرةامالقيوين"
 
-  whitelist: "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ دبي ابوظبي الشارقة عجمان رأس الخيمةالفجيرة ام القيوين"
+spring:
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB

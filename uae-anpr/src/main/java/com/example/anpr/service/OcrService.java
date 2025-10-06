@@ -2,6 +2,8 @@ package com.example.anpr.service;
 
 import com.example.anpr.util.ImageUtils;
 import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -9,10 +11,17 @@ import net.sourceforge.tess4j.TessAPI;
 import net.sourceforge.tess4j.Tesseract;
 import net.sourceforge.tess4j.TesseractException;
 import net.sourceforge.tess4j.util.LoadLibs;
+import org.bytedeco.opencv.global.opencv_imgproc;
+import org.bytedeco.opencv.opencv_core.Mat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+
+import javax.imageio.ImageIO;
+
+import static com.example.anpr.util.ImageUtils.readMat;
+import static com.example.anpr.util.ImageUtils.toBufferedImage;
 
 @Service
 public class OcrService {
@@ -21,19 +30,7 @@ public class OcrService {
 
     private final Tesseract tess;
 
-    public OcrService(@Value("${ocr.tessdataPath:}") String tessdataPath,
-                      @Value("${ocr.lang:eng+ara}") String lang,
-                      @Value("${ocr.whitelist}") String whitelist) {
-        this.tess = new Tesseract();
-        Path tessdataDir = resolveTessdataPath(tessdataPath);
-        this.tess.setDatapath(tessdataDir.toString());
-        log.info("Initialized Tesseract with tessdata directory: {}", tessdataDir);
-        this.tess.setLanguage(lang);
-        this.tess.setTessVariable("user_defined_dpi", "300");
-        if (whitelist != null && !whitelist.isBlank()) {
-            this.tess.setTessVariable("tessedit_char_whitelist", whitelist);
-        }
-    }
+
 
     private Path resolveTessdataPath(String configuredPath) {
         if (configuredPath != null && !configuredPath.isBlank()) {
@@ -51,18 +48,7 @@ public class OcrService {
         return extracted;
     }
 
-    private String ocrWith(String whitelist, int psm, BufferedImage bi) {
-        try {
-            tess.setTessVariable("user_defined_dpi", "300");
-            if (whitelist != null && !whitelist.isBlank()) {
-                tess.setTessVariable("tessedit_char_whitelist", whitelist);
-            }
-            tess.setPageSegMode(psm);
-            return tess.doOCR(bi);
-        } catch (TesseractException e) {
-            throw new RuntimeException("OCR failed", e);
-        }
-    }
+
 
     public String ocrDigits(BufferedImage bi) {
         return ocrWith("0123456789", TessAPI.TessPageSegMode.PSM_SINGLE_LINE, bi);
@@ -78,9 +64,97 @@ public class OcrService {
 
     public String doOcr(org.bytedeco.opencv.opencv_core.Mat mat) {
         try {
-            return tess.doOCR(ImageUtils.toBufferedImage(mat));
+            return tess.doOCR(toBufferedImage(mat));
         } catch (TesseractException e) {
             throw new RuntimeException("OCR failed", e);
+        }
+    }
+    public OcrService(@Value("${ocr.tessdataPath:}") String tessdataPath,
+                      @Value("${ocr.lang:eng+ara}") String lang,
+                      @Value("${ocr.whitelist}") String whitelist) {
+        this.tess = new Tesseract();
+        Path tessdataDir = resolveTessdataPath(tessdataPath);
+        this.tess.setDatapath(tessdataDir.toString());
+        log.info("Initialized Tesseract with tessdata directory: {}", tessdataDir);
+        this.tess.setLanguage(lang);
+
+        // Enhanced OCR configuration
+        this.tess.setTessVariable("user_defined_dpi", "300");
+        this.tess.setTessVariable("tessedit_pageseg_mode", "7"); // Single text line
+        this.tess.setTessVariable("tessedit_char_blacklist", "!@#$%^&*()_+-=[]{}|;:'\",.<>?/");
+
+        if (whitelist != null && !whitelist.isBlank()) {
+            this.tess.setTessVariable("tessedit_char_whitelist", whitelist);
+        }
+    }
+
+    private String ocrWith(String whitelist, int psm, BufferedImage bi) {
+        try {
+            // Preprocess the image for better OCR
+            BufferedImage processedImage = preprocessOCRImage(bi);
+
+            tess.setTessVariable("user_defined_dpi", "300");
+            if (whitelist != null && !whitelist.isBlank()) {
+                tess.setTessVariable("tessedit_char_whitelist", whitelist);
+            }
+            tess.setPageSegMode(psm);
+            String result = tess.doOCR(processedImage);
+            return cleanOCRText(result);
+        } catch (TesseractException e) {
+            log.warn("OCR failed for PSM {}: {}", psm, e.getMessage());
+            return "";
+        }
+    }
+
+// Update the preprocessOCRImage method in OcrService.java:
+
+    private BufferedImage preprocessOCRImage(BufferedImage original) {
+        try {
+            // Convert to Mat
+            Mat mat = ImageUtils.readMat(imageToByteArray(original));
+
+            // Convert to grayscale for OCR
+            Mat gray = ImageUtils.toGray(mat);
+
+            // Resize if too small
+            if (gray.rows() < 50) {
+                gray = ImageUtils.resize(gray, 2.0);
+            }
+
+            // Simple contrast enhancement
+            opencv_imgproc.equalizeHist(gray, gray);
+
+            // Convert back to BufferedImage
+            return ImageUtils.toBufferedImage(gray);
+
+        } catch (Exception e) {
+            log.warn("OCR preprocessing failed, using original: {}", e.getMessage());
+            return original;
+        }
+    }
+    private String cleanOCRText(String text) {
+        if (text == null) return "";
+
+        return text.trim()
+                .replaceAll("[\\r\\n]+", " ")  // Replace newlines with spaces
+                .replaceAll("\\s+", " ")       // Collapse multiple spaces
+                .replaceAll("[^a-zA-Z0-9\\s\\u0600-\\u06FF]", "") // Keep only alphanumeric, spaces, and Arabic
+                .trim();
+    }
+
+    // Helper method to convert BufferedImage to Mat
+    private Mat bufferedImageToMat(BufferedImage bi) {
+        // Simple conversion - you might want to use more robust conversion
+        return readMat(imageToByteArray(bi));
+    }
+
+    private byte[] imageToByteArray(BufferedImage bi) {
+        try {
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            ImageIO.write(bi, "png", baos);
+            return baos.toByteArray();
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to convert image to byte array", e);
         }
     }
 }
