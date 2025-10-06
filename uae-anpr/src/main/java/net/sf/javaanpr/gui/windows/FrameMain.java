@@ -20,10 +20,10 @@ import net.sf.javaanpr.gui.tools.ImageFileFilter;
 import net.sf.javaanpr.imageanalysis.CarSnapshot;
 import net.sf.javaanpr.imageanalysis.Photo;
 import net.sf.javaanpr.jar.Main;
-import org.jdesktop.layout.GroupLayout;
-import org.jdesktop.layout.LayoutStyle;
 
 import javax.swing.*;
+import javax.swing.GroupLayout;
+import javax.swing.LayoutStyle;
 import javax.swing.event.ListSelectionEvent;
 import java.awt.*;
 import java.awt.event.ActionEvent;
@@ -106,9 +106,9 @@ public class FrameMain extends JFrame {
         GroupLayout panelCarLayout = new GroupLayout(panelCar);
         panelCar.setLayout(panelCarLayout);
         panelCarLayout.setHorizontalGroup(
-                panelCarLayout.createParallelGroup(GroupLayout.LEADING).add(0, 585, Short.MAX_VALUE));
-        panelCarLayout
-                .setVerticalGroup(panelCarLayout.createParallelGroup(GroupLayout.LEADING).add(0, 477, Short.MAX_VALUE));
+                panelCarLayout.createParallelGroup(GroupLayout.Alignment.LEADING).addGap(0, 585, Short.MAX_VALUE));
+        panelCarLayout.setVerticalGroup(
+                panelCarLayout.createParallelGroup(GroupLayout.Alignment.LEADING).addGap(0, 477, Short.MAX_VALUE));
         fileListScrollPane.setBorder(BorderFactory.createEtchedBorder());
         fileListScrollPane.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_ALWAYS);
         fileList.setBackground(UIManager.getDefaults().getColor("Panel.background"));
@@ -145,28 +145,32 @@ public class FrameMain extends JFrame {
         setJMenuBar(menuBar);
         GroupLayout layout = new GroupLayout(getContentPane());
         getContentPane().setLayout(layout); // TODO refactor
-        layout.setHorizontalGroup(layout.createParallelGroup(GroupLayout.LEADING)
-                .add(layout.createSequentialGroup().addContainerGap()
-                        .add(layout.createParallelGroup(GroupLayout.TRAILING)
-                                .add(GroupLayout.LEADING, bottomLine, GroupLayout.DEFAULT_SIZE, 589,
+        layout.setHorizontalGroup(layout.createParallelGroup(GroupLayout.Alignment.LEADING)
+                .addGroup(layout.createSequentialGroup().addContainerGap()
+                        .addGroup(layout.createParallelGroup(GroupLayout.Alignment.LEADING)
+                                .addComponent(panelCar, GroupLayout.DEFAULT_SIZE, GroupLayout.DEFAULT_SIZE,
                                         Short.MAX_VALUE)
-                                .add(GroupLayout.LEADING, panelCar, GroupLayout.DEFAULT_SIZE,
-                                        GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)).addPreferredGap(LayoutStyle.RELATED)
-                        .add(layout.createParallelGroup(GroupLayout.TRAILING)
-                                .add(fileListScrollPane, GroupLayout.DEFAULT_SIZE, 190, Short.MAX_VALUE)
-                                .add(GroupLayout.LEADING, recognitionLabel, GroupLayout.DEFAULT_SIZE, 190,
-                                        Short.MAX_VALUE)
-                                .add(recognizeButton, GroupLayout.DEFAULT_SIZE, 190, Short.MAX_VALUE))
+                                .addComponent(bottomLine, GroupLayout.DEFAULT_SIZE, 589, Short.MAX_VALUE))
+                        .addPreferredGap(LayoutStyle.ComponentPlacement.RELATED)
+                        .addGroup(layout.createParallelGroup(GroupLayout.Alignment.LEADING, false)
+                                .addComponent(fileListScrollPane, GroupLayout.DEFAULT_SIZE, 190, Short.MAX_VALUE)
+                                .addComponent(recognizeButton, GroupLayout.DEFAULT_SIZE, 190, Short.MAX_VALUE)
+                                .addComponent(recognitionLabel, GroupLayout.DEFAULT_SIZE, 190, Short.MAX_VALUE))
                         .addContainerGap()));
-        layout.setVerticalGroup(layout.createParallelGroup(GroupLayout.LEADING)
-                .add(layout.createSequentialGroup().addContainerGap()
-                        .add(layout.createParallelGroup(GroupLayout.LEADING).add(layout.createSequentialGroup()
-                                .add(fileListScrollPane, GroupLayout.DEFAULT_SIZE, 402, Short.MAX_VALUE)
-                                .addPreferredGap(LayoutStyle.RELATED).add(recognizeButton)
-                                .addPreferredGap(LayoutStyle.RELATED)
-                                .add(recognitionLabel, GroupLayout.PREFERRED_SIZE, 44, GroupLayout.PREFERRED_SIZE))
-                                .add(panelCar, GroupLayout.DEFAULT_SIZE, GroupLayout.DEFAULT_SIZE,
-                                        Short.MAX_VALUE)).addPreferredGap(LayoutStyle.RELATED).add(bottomLine)));
+        layout.setVerticalGroup(layout.createParallelGroup(GroupLayout.Alignment.LEADING)
+                .addGroup(layout.createSequentialGroup().addContainerGap()
+                        .addGroup(layout.createParallelGroup(GroupLayout.Alignment.LEADING)
+                                .addGroup(layout.createSequentialGroup()
+                                        .addComponent(fileListScrollPane, GroupLayout.DEFAULT_SIZE, 402, Short.MAX_VALUE)
+                                        .addPreferredGap(LayoutStyle.ComponentPlacement.RELATED)
+                                        .addComponent(recognizeButton)
+                                        .addPreferredGap(LayoutStyle.ComponentPlacement.RELATED)
+                                        .addComponent(recognitionLabel, GroupLayout.PREFERRED_SIZE, 44,
+                                                GroupLayout.PREFERRED_SIZE))
+                                .addComponent(panelCar, GroupLayout.DEFAULT_SIZE, GroupLayout.DEFAULT_SIZE,
+                                        Short.MAX_VALUE))
+                        .addPreferredGap(LayoutStyle.ComponentPlacement.RELATED)
+                        .addComponent(bottomLine)));
         pack();
     }
 
