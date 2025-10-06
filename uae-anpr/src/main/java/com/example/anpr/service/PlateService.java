@@ -47,6 +47,12 @@ public class PlateService {
             // For larger images, try multiple strategies
             List<PlateResult> allResults = new ArrayList<>();
 
+            // Strategy 0: Dubai style heuristic (runs first so it can win quickly when confident)
+            PlateResult dubaiStyle = recognizeDubaiStylePlate(src);
+            if (dubaiStyle != null) {
+                allResults.add(dubaiStyle);
+            }
+
             // Strategy 1: Original image with ROI detection
             PlateResult result1 = recognizeFrom(src, true, "ROI_DETECTION");
             allResults.add(result1);
@@ -145,6 +151,75 @@ public class PlateService {
         );
 
         return new PlateResult(parsed.number, parsed.letter, parsed.emirate, diagnostics);
+    }
+
+    private PlateResult recognizeDubaiStylePlate(Mat original) {
+        try {
+            Rect roi = ImageUtils.tryFindPlateROI(original);
+            Mat plate = (roi != null ? new Mat(original, roi) : original).clone();
+
+            // Normalise plate dimensions for deterministic crops
+            Mat normalised = ImageUtils.prepareDubaiPlate(plate);
+
+            if (normalised.empty()) {
+                return null;
+            }
+
+            // Expected layout:
+            // ┌───────────────┬─────┐
+            // │  Emirate text │ Ltr │  <- top band (~38% height)
+            // ├───────────────┴─────┤
+            // │       Digits        │  <- bottom band
+            // └─────────────────────┘
+            Rect topBand = ImageUtils.relativeRect(normalised, 0.0, 0.0, 1.0, 0.38);
+            Rect digitsBand = ImageUtils.relativeRect(normalised, 0.06, 0.38, 0.88, 0.58);
+            Rect letterRect = ImageUtils.relativeRect(normalised, 0.72, 0.05, 0.25, 0.30);
+
+            Mat top = new Mat(normalised, topBand).clone();
+            Mat digitsRegion = new Mat(normalised, digitsBand).clone();
+            Mat letterRegion = new Mat(normalised, letterRect).clone();
+
+            // Digits : combine multiple aggressive preprocessings
+            List<String> digitCandidates = new ArrayList<>();
+            for (Mat m : ImageUtils.generateDigitVariants(digitsRegion)) {
+                digitCandidates.add(ocr.ocrDigits(ImageUtils.toBufferedImage(m)));
+            }
+            String digits = selectBestDigits(digitCandidates);
+
+            // Letter : focus on single character area
+            String letter = majorityLetter(
+                    normalizeLetter(ocr.ocrLetters(ImageUtils.toBufferedImage(ImageUtils.prepareDubaiLetter(letterRegion)))),
+                    normalizeLetter(ocr.ocrLetters(ImageUtils.toBufferedImage(ImageUtils.prepareDubaiLetter(top))))
+            );
+
+            // Emirate : use entire top band and whole plate for redundancy
+            String emirateCombined = String.join(" ", Arrays.asList(
+                    ocr.ocrEmirate(ImageUtils.toBufferedImage(ImageUtils.prepareDubaiEmirate(top))),
+                    ocr.ocrEmirate(ImageUtils.toBufferedImage(ImageUtils.prepareDubaiEmirate(normalised)))
+            ));
+
+            EmirateParser.Parsed parsed = parseAndValidate(emirateCombined, digits, letter);
+
+            String diagnostics = String.format(
+                    "DUBAI_HEURISTIC | SRC=%dx%d | ROI=%s | DIGITS=%s | LETTER=%s | EMIRATE=%s",
+                    original.cols(),
+                    original.rows(),
+                    roi != null ? roi.width() + "x" + roi.height() : "FULL",
+                    digits,
+                    letter,
+                    emirateCombined
+            );
+
+            // Only accept when we have convincing results, otherwise fall back to other strategies
+            if (parsed != null && parsed.number != null && parsed.number.length() >= 4) {
+                return new PlateResult(parsed.number, parsed.letter, parsed.emirate, diagnostics);
+            }
+            return null;
+
+        } catch (Exception e) {
+            log.debug("Dubai heuristic failed: {}", e.getMessage());
+            return null;
+        }
     }
 
 
