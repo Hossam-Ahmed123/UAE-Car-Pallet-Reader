@@ -8,6 +8,7 @@ import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.Optional;
 import net.sourceforge.tess4j.ITesseract;
 import net.sourceforge.tess4j.Tesseract;
@@ -27,10 +28,14 @@ public class TesseractOcrEngine {
     private final ITesseract tesseract;
 
     public TesseractOcrEngine(AnprProperties properties) {
-        this.tesseract = create(properties);
+        this(create(properties));
     }
 
-    private ITesseract create(AnprProperties properties) {
+    TesseractOcrEngine(ITesseract tesseract) {
+        this.tesseract = Objects.requireNonNull(tesseract, "tesseract");
+    }
+
+    private static ITesseract create(AnprProperties properties) {
         Tesseract instance = new Tesseract();
         Path tessData = resolveTessData(properties);
         instance.setDatapath(tessData.toAbsolutePath().toString());
@@ -88,7 +93,7 @@ public class TesseractOcrEngine {
             if (normalized.isEmpty()) {
                 return Optional.empty();
             }
-            double confidence = estimateConfidence(normalized);
+            double confidence = readConfidence();
             log.debug("OCR recognized {} with confidence {}", normalized, confidence);
             return Optional.of(new OcrResult(normalized, confidence));
         } catch (IOException ex) {
@@ -108,14 +113,24 @@ public class TesseractOcrEngine {
         }
     }
 
-    private double estimateConfidence(String normalized) {
-        if (normalized.isEmpty()) {
+    private double readConfidence() {
+        try {
+            int meanConfidence = tesseract.getMeanConfidence();
+            if (meanConfidence < 0) {
+                return 0.0;
+            }
+            double scaled = meanConfidence / 100.0;
+            if (!Double.isFinite(scaled)) {
+                return 0.0;
+            }
+            return Math.max(0.0, Math.min(1.0, scaled));
+        } catch (UnsupportedOperationException ex) {
+            log.debug("Tesseract mean confidence not available: {}", ex.getMessage());
+            return 0.0;
+        } catch (RuntimeException ex) {
+            log.debug("Tesseract mean confidence retrieval failed: {}", ex.getMessage());
             return 0.0;
         }
-        double base = 0.85;
-        double perCharacter = 0.03;
-        double confidence = base + perCharacter * Math.min(normalized.length(), 10);
-        return Math.max(0.88, Math.min(0.99, confidence));
     }
 
     private byte[] encode(Mat candidate) {
