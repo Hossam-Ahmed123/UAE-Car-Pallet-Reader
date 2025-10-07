@@ -109,4 +109,112 @@ public class ImagePreprocessor {
         log.debug("Extracted {} plate candidates", candidates.size());
         return candidates;
     }
+
+    /**
+     * Generates multiple enhanced variations for a plate candidate prior to OCR. The hybrid
+     * strategy fuses morphological filtering, adaptive thresholding and spatial cropping to
+     * emphasise both the alphanumeric body and the suffix character common on UAE plates.
+     */
+    public List<Mat> generateOcrVariants(Mat candidate) {
+        List<Mat> variants = new ArrayList<>();
+        Mat normalized = upscaleToWidth(candidate, 480);
+        variants.add(normalized.clone());
+
+        Mat gray = new Mat();
+        opencv_imgproc.cvtColor(normalized, gray, opencv_imgproc.COLOR_BGR2GRAY);
+
+        Mat clahe = new Mat();
+        opencv_imgproc.createCLAHE(2.5, new Size(8, 8)).apply(gray, clahe);
+
+        Mat blurred = new Mat();
+        opencv_imgproc.GaussianBlur(clahe, blurred, new Size(3, 3), 0);
+
+        Mat sharpened = new Mat();
+        opencv_core.addWeighted(clahe, 1.5, blurred, -0.5, 0, sharpened);
+        variants.add(toColor(sharpened));
+
+        Mat adaptive = new Mat();
+        opencv_imgproc.adaptiveThreshold(sharpened, adaptive, 255,
+                opencv_imgproc.ADAPTIVE_THRESH_GAUSSIAN_C,
+                opencv_imgproc.THRESH_BINARY, 35, 10);
+        variants.add(toColor(adaptive));
+
+        Mat inverted = new Mat();
+        opencv_core.bitwise_not(adaptive, inverted);
+        variants.add(toColor(inverted));
+
+        Mat morphKernel = opencv_imgproc.getStructuringElement(opencv_imgproc.MORPH_RECT, new Size(3, 3));
+        Mat closed = new Mat();
+        opencv_imgproc.morphologyEx(adaptive, closed, opencv_imgproc.MORPH_CLOSE, morphKernel);
+        variants.add(toColor(closed));
+
+        // Crop the dominant numeric band occupying the lower section of UAE plates
+        int numericTop = Math.max(0, (int) (normalized.rows() * 0.35));
+        int numericHeight = normalized.rows() - numericTop;
+        if (numericHeight > normalized.rows() / 3) {
+            org.bytedeco.opencv.opencv_core.Rect digitsRect = new org.bytedeco.opencv.opencv_core.Rect(
+                    0, numericTop, normalized.cols(), numericHeight);
+            Mat digitsRegion = new Mat(normalized, digitsRect).clone();
+            variants.addAll(generateFocusedVariants(digitsRegion));
+        }
+
+        // Crop the right-most band that usually contains the classification letter(s)
+        int letterWidth = (int) Math.round(normalized.cols() * 0.28);
+        if (letterWidth > 30 && letterWidth < normalized.cols()) {
+            org.bytedeco.opencv.opencv_core.Rect letterRect = new org.bytedeco.opencv.opencv_core.Rect(
+                    normalized.cols() - letterWidth, 0, letterWidth, normalized.rows());
+            Mat letterRegion = new Mat(normalized, letterRect).clone();
+            variants.addAll(generateFocusedVariants(letterRegion));
+        }
+
+        return variants;
+    }
+
+    private List<Mat> generateFocusedVariants(Mat region) {
+        List<Mat> variants = new ArrayList<>();
+        Mat resized = upscaleToWidth(region, 320);
+        variants.add(resized.clone());
+
+        Mat gray = new Mat();
+        opencv_imgproc.cvtColor(resized, gray, opencv_imgproc.COLOR_BGR2GRAY);
+
+        Mat clahe = new Mat();
+        opencv_imgproc.createCLAHE(2.3, new Size(8, 8)).apply(gray, clahe);
+
+        Mat thresh = new Mat();
+        opencv_imgproc.adaptiveThreshold(clahe, thresh, 255,
+                opencv_imgproc.ADAPTIVE_THRESH_MEAN_C,
+                opencv_imgproc.THRESH_BINARY, 31, 8);
+
+        Mat dilated = new Mat();
+        Mat kernel = opencv_imgproc.getStructuringElement(opencv_imgproc.MORPH_RECT, new Size(2, 2));
+        opencv_imgproc.dilate(thresh, dilated, kernel);
+
+        variants.add(toColor(clahe));
+        variants.add(toColor(thresh));
+        variants.add(toColor(dilated));
+        return variants;
+    }
+
+    private Mat upscaleToWidth(Mat source, int minWidth) {
+        if (source.cols() <= 0) {
+            return source.clone();
+        }
+        if (source.cols() >= minWidth) {
+            return source.clone();
+        }
+        Mat resized = new Mat();
+        double scale = minWidth / (double) source.cols();
+        opencv_imgproc.resize(source, resized, new Size(), scale, scale, opencv_imgproc.INTER_CUBIC);
+        return resized;
+    }
+
+    private Mat toColor(Mat input) {
+        if (input.channels() == 1) {
+            Mat color = new Mat();
+            opencv_imgproc.cvtColor(input, color, opencv_imgproc.COLOR_GRAY2BGR);
+            return color;
+        }
+        return input.clone();
+    }
 }

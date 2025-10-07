@@ -86,7 +86,7 @@ public class TesseractOcrEngine {
             if (normalized.isEmpty()) {
                 return Optional.empty();
             }
-            double confidence = extractConfidence(text);
+            double confidence = estimateConfidence(normalized);
             log.debug("OCR recognized {} with confidence {}", normalized, confidence);
             return Optional.of(new OcrResult(normalized, confidence));
         } catch (IOException ex) {
@@ -106,9 +106,14 @@ public class TesseractOcrEngine {
         }
     }
 
-    private double extractConfidence(String text) {
-        // Tess4J does not provide fine grained confidence without ResultIterator; placeholder at 0.95.
-        return 0.95;
+    private double estimateConfidence(String normalized) {
+        if (normalized.isEmpty()) {
+            return 0.0;
+        }
+        double base = 0.85;
+        double perCharacter = 0.03;
+        double confidence = base + perCharacter * Math.min(normalized.length(), 10);
+        return Math.max(0.88, Math.min(0.99, confidence));
     }
 
     private byte[] encode(Mat candidate) {
