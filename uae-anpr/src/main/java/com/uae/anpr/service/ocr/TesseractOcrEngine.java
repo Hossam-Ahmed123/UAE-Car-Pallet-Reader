@@ -2,6 +2,8 @@ package com.uae.anpr.service.ocr;
 
 import com.uae.anpr.config.AnprProperties;
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Optional;
@@ -32,11 +34,11 @@ public class TesseractOcrEngine {
         instance.setDatapath(tessData.toAbsolutePath().toString());
         instance.setLanguage(Optional.ofNullable(properties.ocr().language()).orElse("eng"));
         if (properties.ocr().enableWhitelist()) {
-            instance.setVariable("tessedit_char_whitelist", properties.ocr().whitelistPattern());
+            setVariable(instance, "tessedit_char_whitelist", properties.ocr().whitelistPattern());
         }
-        instance.setVariable("user_defined_dpi", "300");
-        instance.setVariable("classify_bln_numeric_mode", "1");
-        instance.setVariable("preserve_interword_spaces", "1");
+        setVariable(instance, "user_defined_dpi", "300");
+        setVariable(instance, "classify_bln_numeric_mode", "1");
+        setVariable(instance, "preserve_interword_spaces", "1");
         return instance;
     }
 
@@ -80,12 +82,37 @@ public class TesseractOcrEngine {
     }
 
     private byte[] encode(Mat candidate) {
-        BytePointer buffer = new BytePointer();
-        opencv_imgcodecs.imencode(".png", candidate, buffer);
-        byte[] bytes = new byte[(int) buffer.limit()];
-        buffer.get(bytes);
-        buffer.deallocate();
-        return bytes;
+        try (BytePointer buffer = new BytePointer()) {
+            boolean encoded = opencv_imgcodecs.imencode(".png", candidate, buffer);
+            if (!encoded) {
+                throw new IllegalStateException("Failed to encode image as PNG");
+            }
+            byte[] bytes = new byte[(int) buffer.limit()];
+            buffer.get(bytes);
+            return bytes;
+        }
+    }
+
+    private void setVariable(Tesseract instance, String name, String value) {
+        Method modernApi = resolveVariableMethod("setVariable");
+        Method legacyApi = resolveVariableMethod("setTessVariable");
+        Method target = modernApi != null ? modernApi : legacyApi;
+        if (target == null) {
+            throw new IllegalStateException("No supported API to set Tesseract variable " + name);
+        }
+        try {
+            target.invoke(instance, name, value);
+        } catch (IllegalAccessException | InvocationTargetException ex) {
+            throw new IllegalStateException("Unable to set Tesseract variable " + name, ex);
+        }
+    }
+
+    private Method resolveVariableMethod(String name) {
+        try {
+            return Tesseract.class.getMethod(name, String.class, String.class);
+        } catch (NoSuchMethodException ex) {
+            return null;
+        }
     }
 
     public record OcrResult(String text, double confidence) {
