@@ -71,4 +71,17 @@ class ResultAggregatorTest {
         assertEquals("Abu Dhabi", best.get().breakdown().city());
         assertEquals("A", best.get().breakdown().plateCharacter());
     }
+
+    @Test
+    void prefersLetteredCandidateEvenWhenDigitsHaveHigherConfidence() {
+        List<OcrResult> candidates = List.of(
+                new OcrResult("45158", 0.995),
+                new OcrResult("A45158", 0.88));
+
+        Optional<ResultAggregator.AggregatedResult> best = aggregator.selectBest(candidates, 0.80);
+
+        assertTrue(best.isPresent());
+        assertEquals("A45158", best.get().text());
+        assertEquals("A", best.get().breakdown().plateCharacter());
+    }
 }
