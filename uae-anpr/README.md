@@ -29,7 +29,10 @@ Both endpoints respond with the same JSON payload:
 
 ```json
 {
-  "plateNumber": "M12345",
+  "plateNumber": "DUBAIA12345",
+  "city": "Dubai",
+  "plateCharacter": "A",
+  "carNumber": "12345",
   "confidence": 0.97,
   "accepted": true
 }
