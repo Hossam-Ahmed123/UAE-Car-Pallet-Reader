@@ -6,6 +6,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Locale;
 import java.util.Optional;
 import net.sourceforge.tess4j.ITesseract;
 import net.sourceforge.tess4j.Tesseract;
@@ -52,7 +53,10 @@ public class TesseractOcrEngine {
             if (text == null) {
                 return Optional.empty();
             }
-            String normalized = text.replaceAll("[^A-Z0-9]", "").trim();
+            String normalized = text
+                    .toUpperCase(Locale.ROOT)
+                    .replaceAll("[^A-Z0-9]", "")
+                    .trim();
             if (normalized.isEmpty()) {
                 return Optional.empty();
             }
