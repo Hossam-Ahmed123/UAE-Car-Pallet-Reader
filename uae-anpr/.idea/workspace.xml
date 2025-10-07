@@ -4,119 +4,11 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="0ba575c9-4598-4946-bc2c-b54486b35a19" name="Changes" comment="Merge pull request #31 from Hossam-Ahmed123/codex/clarify-data-format-for-results&#10;&#10;Improve emirate fallback detection in simple analysis">
-      <change beforePath="$PROJECT_DIR$/src/test/java/net/sf/javaanpr/configurator/ConfiguratorTest.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/java/net/sf/javaanpr/gui/ReportGeneratorTest.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/java/net/sf/javaanpr/gui/tools/ImageFileFilterTest.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/java/net/sf/javaanpr/imageanalysis/PeakComparatorTest.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/java/net/sf/javaanpr/imageanalysis/PhotoTest.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/java/net/sf/javaanpr/intelligence/RecognizedPlateTest.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/java/net/sf/javaanpr/intelligence/SyntaxAnalysisModeTest.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/java/net/sf/javaanpr/recognizer/PatternComparatorTest.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/java/net/sf/javaanpr/recognizer/RecognizedCharTest.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/java/net/sf/javaanpr/test/RecognitionIT.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/java/net/sf/javaanpr/test/RecognitionPerformanceIT.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/java/net/sf/javaanpr/test/util/SimpleImageViewer.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/java/net/sf/javaanpr/test/util/TestUtility.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/results.properties" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/results_actual.properties" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_001.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_002.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_003.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_004.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_005.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_006.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_007.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_008.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_009.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_010.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_011.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_012.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_013.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_014.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_015.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_016.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_017.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_018.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_019.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_020.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_021.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_022.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_023.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_024.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_025.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_026.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_027.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_028.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_029.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_030.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_031.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_032.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_033.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_034.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_035.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_036.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_037.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_038.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_039.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_040.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_041.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_042.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_043.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_044.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_045.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_046.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_047.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_048.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_049.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_050.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_051.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_052.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_053.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_054.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_055.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_056.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_057.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_058.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_059.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_060.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_061.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_062.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_063.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_064.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_065.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_066.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_067.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_068.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_069.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_070.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_071.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_072.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_073.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_074.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_075.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_076.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_077.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_078.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_079.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_080.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_081.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_082.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_083.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_084.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_085.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_086.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_087.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_088.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_089.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_090.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_091.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_092.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_093.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_094.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_095.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_096.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/snapshots/test_097.jpg" beforeDir="false" />
+    <list default="true" id="0ba575c9-4598-4946-bc2c-b54486b35a19" name="Changes" comment="Merge remote-tracking branch 'origin/Master' into Master">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/com/uae/anpr/api/OcrController.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/uae/anpr/api/OcrController.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/com/uae/anpr/api/dto/RecognitionResponse.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/uae/anpr/api/dto/RecognitionResponse.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/resources/application.yml" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/resources/application.yml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -168,7 +60,7 @@
       </set>
     </option>
   </component>
-  <component name="RunManager" selected="Spring Boot.Application">
+  <component name="RunManager" selected="Spring Boot.UaeAnprApplication">
     <configuration name="Main" type="Application" factoryName="Application" temporary="true" nameIsGenerated="true">
       <option name="MAIN_CLASS_NAME" value="net.sf.javaanpr.jar.Main" />
       <module name="uae-anpr" />
@@ -284,6 +176,13 @@
         <option name="Make" enabled="true" />
       </method>
     </configuration>
+    <configuration name="UaeAnprApplication" type="SpringBootApplicationConfigurationType" factoryName="Spring Boot">
+      <module name="uae-anpr" />
+      <option name="SPRING_BOOT_MAIN_CLASS" value="com.uae.anpr.UaeAnprApplication" />
+      <method v="2">
+        <option name="Make" enabled="true" />
+      </method>
+    </configuration>
     <configuration default="true" type="Tox" factoryName="Tox">
       <module name="uae-ocr-anpr" />
       <option name="INTERPRETER_OPTIONS" value="" />
@@ -313,7 +212,7 @@
       <workItem from="1759585014940" duration="3837000" />
       <workItem from="1759601844281" duration="11949000" />
       <workItem from="1759736244096" duration="9631000" />
-      <workItem from="1759808391014" duration="850000" />
+      <workItem from="1759808391014" duration="6792000" />
     </task>
     <task id="LOCAL-00001" summary="enhancement">
       <created>1759736401946</created>
@@ -336,7 +235,21 @@
       <option name="project" value="LOCAL" />
       <updated>1759752944189</updated>
     </task>
-    <option name="localTasksCounter" value="4" />
+    <task id="LOCAL-00004" summary="Merge pull request #36 from Hossam-Ahmed123/codex/enhance-project-using-existing-algorithm&#10;&#10;Add JavaANPR fallback when heuristics fail to read plate">
+      <created>1759809375470</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1759809375470</updated>
+    </task>
+    <task id="LOCAL-00005" summary="Merge remote-tracking branch 'origin/Master' into Master">
+      <created>1759809490330</created>
+      <option name="number" value="00005" />
+      <option name="presentableId" value="LOCAL-00005" />
+      <option name="project" value="LOCAL" />
+      <updated>1759809490330</updated>
+    </task>
+    <option name="localTasksCounter" value="6" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -386,6 +299,8 @@
   <component name="VcsManagerConfiguration">
     <MESSAGE value="enhancement" />
     <MESSAGE value="Merge pull request #31 from Hossam-Ahmed123/codex/clarify-data-format-for-results&#10;&#10;Improve emirate fallback detection in simple analysis" />
-    <option name="LAST_COMMIT_MESSAGE" value="Merge pull request #31 from Hossam-Ahmed123/codex/clarify-data-format-for-results&#10;&#10;Improve emirate fallback detection in simple analysis" />
+    <MESSAGE value="Merge pull request #36 from Hossam-Ahmed123/codex/enhance-project-using-existing-algorithm&#10;&#10;Add JavaANPR fallback when heuristics fail to read plate" />
+    <MESSAGE value="Merge remote-tracking branch 'origin/Master' into Master" />
+    <option name="LAST_COMMIT_MESSAGE" value="Merge remote-tracking branch 'origin/Master' into Master" />
   </component>
 </project>

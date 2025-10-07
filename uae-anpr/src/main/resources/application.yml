@@ -20,7 +20,7 @@ anpr:
     confidence-threshold: 0.9
     enable-whitelist: true
     whitelist-pattern: "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-    # datapath: "C:/Program Files/Tesseract-OCR/tessdata"
+    datapath: "C:/Program Files/Tesseract-OCR/tessdata"
 
 logging:
   level:
