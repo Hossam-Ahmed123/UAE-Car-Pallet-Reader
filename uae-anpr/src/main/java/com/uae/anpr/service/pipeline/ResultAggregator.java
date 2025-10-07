@@ -47,6 +47,8 @@ public class ResultAggregator {
             hypothesis.observe(result.confidence());
         }
 
+        augmentWithLayoutCombinations(hypotheses);
+
         return hypotheses.values().stream()
                 .map(CandidateHypothesis::finalizeResult)
                 .filter(Optional::isPresent)
@@ -65,6 +67,63 @@ public class ResultAggregator {
 
     public record AggregatedResult(String text, double confidence, double score, int occurrences,
             PlateBreakdown breakdown) {
+    }
+
+    private void augmentWithLayoutCombinations(Map<String, CandidateHypothesis> hypotheses) {
+        List<CandidateHypothesis> digitsOnly = hypotheses.values().stream()
+                .filter(candidate -> candidate.containsDigits() && !candidate.containsLetters())
+                .toList();
+        List<CandidateHypothesis> lettersOnly = hypotheses.values().stream()
+                .filter(candidate -> candidate.containsLetters() && !candidate.containsDigits())
+                .filter(candidate -> candidate.text().length() <= 3)
+                .toList();
+
+        for (CandidateHypothesis digits : digitsOnly) {
+            for (CandidateHypothesis letters : lettersOnly) {
+                double combinedConfidence = combineConfidence(digits, letters);
+                if (combinedConfidence <= 0.0) {
+                    continue;
+                }
+                maybeAddCombinedHypothesis(hypotheses, digits, letters, digits.text() + letters.text(),
+                        combinedConfidence);
+                maybeAddCombinedHypothesis(hypotheses, digits, letters, letters.text() + digits.text(),
+                        combinedConfidence);
+            }
+        }
+    }
+
+    private double combineConfidence(CandidateHypothesis digits, CandidateHypothesis letters) {
+        double digitsConfidence = Math.max(digits.maxConfidence(), digits.averageConfidence());
+        double lettersConfidence = Math.max(letters.maxConfidence(), letters.averageConfidence());
+        if (digitsConfidence <= 0.0 || lettersConfidence <= 0.0) {
+            return 0.0;
+        }
+        double base = Math.min(digitsConfidence, lettersConfidence);
+        double balance = Math.abs(digitsConfidence - lettersConfidence) <= 0.1 ? 0.02 : 0.0;
+        double occurrencesBonus = Math.min(0.02, 0.01 * Math.min(digits.occurrences(), letters.occurrences()));
+        return Math.min(0.999, base + balance + occurrencesBonus);
+    }
+
+    private void maybeAddCombinedHypothesis(Map<String, CandidateHypothesis> hypotheses,
+            CandidateHypothesis digits,
+            CandidateHypothesis letters,
+            String combinedText,
+            double combinedConfidence) {
+        if (combinedText == null) {
+            return;
+        }
+        String normalized = combinedText.replaceAll("[^A-Z0-9]", "");
+        if (normalized.isBlank() || hypotheses.containsKey(normalized)) {
+            return;
+        }
+
+        CandidateHypothesis merged = new CandidateHypothesis(normalized, parser.parse(normalized));
+        int supportingObservations = Math.max(1, Math.min(digits.occurrences(), letters.occurrences()));
+        double adjustedConfidence = Math.min(0.999, combinedConfidence + 0.015);
+        for (int i = 0; i < supportingObservations; i++) {
+            merged.observe(adjustedConfidence);
+        }
+        hypotheses.put(normalized, merged);
     }
 
     private static final class CandidateHypothesis {
@@ -86,12 +145,35 @@ public class ResultAggregator {
             maxConfidence = Math.max(maxConfidence, Math.max(0.0, confidence));
         }
 
+        private String text() {
+            return text;
+        }
+
+        private PlateBreakdown breakdown() {
+            return breakdown;
+        }
+
+        private int occurrences() {
+            return occurrences;
+        }
+
+        private double maxConfidence() {
+            return maxConfidence;
+        }
+
+        private double averageConfidence() {
+            if (occurrences == 0) {
+                return 0.0;
+            }
+            return sumConfidence / occurrences;
+        }
+
         private Optional<AggregatedResult> finalizeResult() {
             if (occurrences == 0) {
                 return Optional.empty();
             }
             double aggregatedConfidence = clamp(computeAggregatedConfidence());
-            double score = aggregatedConfidence + consensusBonus();
+            double score = aggregatedConfidence + consensusBonus() + structurePreference();
             return Optional.of(new AggregatedResult(text, aggregatedConfidence, score, occurrences, breakdown));
         }
 
@@ -142,15 +224,34 @@ public class ResultAggregator {
             }
             String classification = breakdown.plateCharacter();
             if (classification == null || classification.isBlank()) {
-                penalty += 0.04;
+                penalty += 0.07;
             }
             if (!containsLetters()) {
-                penalty += 0.05;
+                penalty += 0.08;
             }
             if (text.length() < 4) {
                 penalty += 0.04;
             }
             return penalty;
+        }
+
+        private double structurePreference() {
+            double preference = 0.0;
+            String classification = breakdown.plateCharacter();
+            if (classification != null && !classification.isBlank()) {
+                preference += 0.05;
+                if (classification.length() <= 2) {
+                    preference += 0.01;
+                }
+            } else {
+                preference -= 0.04;
+            }
+            if (containsLetters()) {
+                preference += 0.01;
+            } else {
+                preference -= 0.03;
+            }
+            return preference;
         }
 
         private boolean containsDigits() {

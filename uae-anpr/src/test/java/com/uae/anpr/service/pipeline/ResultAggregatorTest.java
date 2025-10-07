@@ -71,4 +71,32 @@ class ResultAggregatorTest {
         assertEquals("Abu Dhabi", best.get().breakdown().city());
         assertEquals("A", best.get().breakdown().plateCharacter());
     }
+
+    @Test
+    void prefersLetteredCandidateEvenWhenDigitsHaveHigherConfidence() {
+        List<OcrResult> candidates = List.of(
+                new OcrResult("45158", 0.995),
+                new OcrResult("A45158", 0.88));
+
+        Optional<ResultAggregator.AggregatedResult> best = aggregator.selectBest(candidates, 0.80);
+
+        assertTrue(best.isPresent());
+        assertEquals("A45158", best.get().text());
+        assertEquals("A", best.get().breakdown().plateCharacter());
+    }
+
+    @Test
+    void combinesDigitAndLetterHypothesesToRecoverSuffix() {
+        List<OcrResult> candidates = List.of(
+                new OcrResult("45158", 0.996),
+                new OcrResult("45158X", 0.998),
+                new OcrResult("Z", 0.94));
+
+        Optional<ResultAggregator.AggregatedResult> best = aggregator.selectBest(candidates, 0.80);
+
+        assertTrue(best.isPresent());
+        assertEquals("45158Z", best.get().text());
+        assertEquals("Z", best.get().breakdown().plateCharacter());
+        assertEquals("45158", best.get().breakdown().carNumber());
+    }
 }

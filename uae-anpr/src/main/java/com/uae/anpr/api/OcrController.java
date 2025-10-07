@@ -80,15 +80,19 @@ public class OcrController {
         return ResponseEntity.badRequest().body(new RecognitionResponse(null, null, null,  0.0, false));
     }
 
-    private RecognitionResponse toResponse(Optional<OcrResult> result) {
+    RecognitionResponse toResponse(Optional<OcrResult> result) {
         if (result.isEmpty()) {
             return new RecognitionResponse(null, null, null, 0.0, false);
         }
         OcrResult ocrResult = result.get();
         boolean accepted = ocrResult.confidence() >= properties.ocr().confidenceThreshold();
         PlateBreakdown breakdown = plateParser.parse(ocrResult.text());
+        String plateNumber = breakdown.carNumber();
+        if (plateNumber == null || plateNumber.isBlank()) {
+            plateNumber = ocrResult.text();
+        }
         return new RecognitionResponse(
-                ocrResult.text(),
+                plateNumber,
                 breakdown.city(),
                 breakdown.plateCharacter(),
 

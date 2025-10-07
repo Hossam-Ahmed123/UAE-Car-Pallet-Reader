@@ -116,9 +116,9 @@ public class ImagePreprocessor {
      * emphasise both the alphanumeric body and the suffix character common on UAE plates.
      */
     public List<Mat> generateOcrVariants(Mat candidate) {
-        List<Mat> variants = new ArrayList<>();
+        List<Mat> baseVariants = new ArrayList<>();
         Mat normalized = upscaleToWidth(candidate, 480);
-        variants.add(normalized.clone());
+        baseVariants.add(normalized.clone());
 
         Mat gray = new Mat();
         opencv_imgproc.cvtColor(normalized, gray, opencv_imgproc.COLOR_BGR2GRAY);
@@ -131,22 +131,22 @@ public class ImagePreprocessor {
 
         Mat sharpened = new Mat();
         opencv_core.addWeighted(clahe, 1.5, blurred, -0.5, 0, sharpened);
-        variants.add(toColor(sharpened));
+        baseVariants.add(toColor(sharpened));
 
         Mat adaptive = new Mat();
         opencv_imgproc.adaptiveThreshold(sharpened, adaptive, 255,
                 opencv_imgproc.ADAPTIVE_THRESH_GAUSSIAN_C,
                 opencv_imgproc.THRESH_BINARY, 35, 10);
-        variants.add(toColor(adaptive));
+        baseVariants.add(toColor(adaptive));
 
         Mat inverted = new Mat();
         opencv_core.bitwise_not(adaptive, inverted);
-        variants.add(toColor(inverted));
+        baseVariants.add(toColor(inverted));
 
         Mat morphKernel = opencv_imgproc.getStructuringElement(opencv_imgproc.MORPH_RECT, new Size(3, 3));
         Mat closed = new Mat();
         opencv_imgproc.morphologyEx(adaptive, closed, opencv_imgproc.MORPH_CLOSE, morphKernel);
-        variants.add(toColor(closed));
+        baseVariants.add(toColor(closed));
 
         // Crop the dominant numeric band occupying the lower section of UAE plates
         int numericTop = Math.max(0, (int) (normalized.rows() * 0.35));
@@ -155,7 +155,7 @@ public class ImagePreprocessor {
             org.bytedeco.opencv.opencv_core.Rect digitsRect = new org.bytedeco.opencv.opencv_core.Rect(
                     0, numericTop, normalized.cols(), numericHeight);
             Mat digitsRegion = new Mat(normalized, digitsRect).clone();
-            variants.addAll(generateFocusedVariants(digitsRegion));
+            baseVariants.addAll(generateFocusedVariants(digitsRegion));
         }
 
         // Crop the right-most band that usually contains the classification letter(s)
@@ -164,10 +164,10 @@ public class ImagePreprocessor {
             org.bytedeco.opencv.opencv_core.Rect letterRect = new org.bytedeco.opencv.opencv_core.Rect(
                     normalized.cols() - letterWidth, 0, letterWidth, normalized.rows());
             Mat letterRegion = new Mat(normalized, letterRect).clone();
-            variants.addAll(generateFocusedVariants(letterRegion));
+            baseVariants.addAll(generateFocusedVariants(letterRegion));
         }
 
-        return variants;
+        return expandWithLayoutPermutations(baseVariants);
     }
 
     private List<Mat> generateFocusedVariants(Mat region) {
@@ -194,6 +194,40 @@ public class ImagePreprocessor {
         variants.add(toColor(thresh));
         variants.add(toColor(dilated));
         return variants;
+    }
+
+    private List<Mat> expandWithLayoutPermutations(List<Mat> baseVariants) {
+        List<Mat> expanded = new ArrayList<>();
+        for (Mat variant : baseVariants) {
+            expanded.add(variant);
+            expanded.addAll(generateLayoutPermutations(variant));
+        }
+        return expanded;
+    }
+
+    private List<Mat> generateLayoutPermutations(Mat source) {
+        List<Mat> permutations = new ArrayList<>();
+        if (source == null || source.empty()) {
+            return permutations;
+        }
+        permutations.add(rotateClone(source, opencv_core.ROTATE_90_CLOCKWISE));
+        permutations.add(rotateClone(source, opencv_core.ROTATE_90_COUNTERCLOCKWISE));
+        permutations.add(rotateClone(source, opencv_core.ROTATE_180));
+        permutations.add(flipClone(source, 1));
+        permutations.add(flipClone(source, 0));
+        return permutations;
+    }
+
+    private Mat rotateClone(Mat source, int rotationCode) {
+        Mat rotated = new Mat();
+        opencv_core.rotate(source, rotated, rotationCode);
+        return rotated;
+    }
+
+    private Mat flipClone(Mat source, int flipCode) {
+        Mat flipped = new Mat();
+        opencv_core.flip(source, flipped, flipCode);
+        return flipped;
     }
 
     private Mat upscaleToWidth(Mat source, int minWidth) {
