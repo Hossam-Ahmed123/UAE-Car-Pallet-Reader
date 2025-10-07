@@ -15,6 +15,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import java.io.IOException;
 import java.util.Base64;
 import java.util.Optional;
+import jakarta.validation.Valid;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
@@ -49,8 +50,12 @@ public class OcrController {
                             content = @Content(schema = @Schema(implementation = RecognitionResponse.class))),
                     @ApiResponse(responseCode = "400", description = "Invalid payload")
             })
-    public ResponseEntity<RecognitionResponse> recognize(@RequestBody RecognitionRequest request) {
-        byte[] imageBytes = Base64.getDecoder().decode(request.imageBase64());
+    public ResponseEntity<RecognitionResponse> recognize(@Valid @RequestBody RecognitionRequest request) {
+        String base64Image = request.imageBase64();
+        if (base64Image == null || base64Image.isBlank()) {
+            throw new IllegalArgumentException("Image payload must not be blank");
+        }
+        byte[] imageBytes = Base64.getDecoder().decode(base64Image);
         Optional<OcrResult> result = pipeline.recognize(imageBytes);
         return ResponseEntity.ok(toResponse(result));
     }
