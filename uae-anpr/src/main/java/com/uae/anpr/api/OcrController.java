@@ -87,9 +87,12 @@ public class OcrController {
         OcrResult ocrResult = result.get();
         boolean accepted = ocrResult.confidence() >= properties.ocr().confidenceThreshold();
         PlateBreakdown breakdown = plateParser.parse(ocrResult.text());
-        String plateNumber = breakdown.carNumber();
+        String plateNumber = ocrResult.text();
+        if (plateNumber != null) {
+            plateNumber = plateNumber.strip();
+        }
         if (plateNumber == null || plateNumber.isBlank()) {
-            plateNumber = ocrResult.text();
+            plateNumber = breakdown.carNumber();
         }
         return new RecognitionResponse(
                 plateNumber,
