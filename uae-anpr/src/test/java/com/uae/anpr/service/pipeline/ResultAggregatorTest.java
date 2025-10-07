@@ -56,4 +56,19 @@ class ResultAggregatorTest {
         assertTrue(best.isPresent());
         assertTrue(best.get().confidence() > 0.85, "Consensus should lift the aggregated confidence");
     }
+
+    @Test
+    void penalisesDigitOnlyCandidatesWhenStructuredAlternativeExists() {
+        List<OcrResult> candidates = List.of(
+                new OcrResult("45158", 0.999),
+                new OcrResult("AUHA45158", 0.92),
+                new OcrResult("A45158", 0.93));
+
+        Optional<ResultAggregator.AggregatedResult> best = aggregator.selectBest(candidates, 0.85);
+
+        assertTrue(best.isPresent());
+        assertEquals("AUHA45158", best.get().text());
+        assertEquals("Abu Dhabi", best.get().breakdown().city());
+        assertEquals("A", best.get().breakdown().plateCharacter());
+    }
 }
