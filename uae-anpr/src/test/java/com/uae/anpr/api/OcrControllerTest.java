@@ -1,7 +1,9 @@
 package com.uae.anpr.api;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.uae.anpr.api.dto.RecognitionResponse;
 import com.uae.anpr.config.AnprProperties;
@@ -32,6 +34,7 @@ class OcrControllerTest {
         assertEquals("45158", response.plateNumber());
         assertEquals("X", response.plateCharacter());
         assertEquals(0.97, response.confidence());
+        assertTrue(response.accepted());
     }
 
     @Test
@@ -41,6 +44,7 @@ class OcrControllerTest {
         assertEquals("DXB", response.plateNumber());
         assertNull(response.plateCharacter());
         assertEquals(0.91, response.confidence());
+        assertTrue(response.accepted());
     }
 
     @Test
@@ -50,5 +54,13 @@ class OcrControllerTest {
         assertNull(response.plateNumber());
         assertNull(response.plateCharacter());
         assertEquals(0.0, response.confidence());
+        assertFalse(response.accepted());
+    }
+
+    @Test
+    void toResponseRejectsResultsBelowThreshold() {
+        RecognitionResponse response = controller.toResponse(Optional.of(new OcrResult("45158", 0.50)));
+
+        assertFalse(response.accepted());
     }
 }
