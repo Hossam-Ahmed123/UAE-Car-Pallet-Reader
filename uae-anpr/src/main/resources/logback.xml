@@ -24,8 +24,9 @@
     </appender>
 
     <logger name="net.sf.javaanpr" level="TRACE"/>
+    <logger name="com.uae.anpr" level="DEBUG"/>
 
-    <root level="debug">
+    <root level="info">
         <appender-ref ref="STDOUT"/>
     </root>
 </configuration>
