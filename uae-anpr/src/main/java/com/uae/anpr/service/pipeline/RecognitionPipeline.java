@@ -5,8 +5,8 @@ import com.uae.anpr.service.ResourceScanner;
 import com.uae.anpr.service.ocr.TesseractOcrEngine;
 import com.uae.anpr.service.ocr.TesseractOcrEngine.OcrResult;
 import com.uae.anpr.service.preprocessing.ImagePreprocessor;
+import com.uae.anpr.service.pipeline.ResultAggregator.AggregatedResult;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import org.bytedeco.opencv.opencv_core.Mat;
@@ -22,14 +22,17 @@ public class RecognitionPipeline {
     private final ImagePreprocessor preprocessor;
     private final TesseractOcrEngine ocrEngine;
     private final AnprProperties properties;
+    private final ResultAggregator aggregator;
 
     public RecognitionPipeline(ImagePreprocessor preprocessor,
                                TesseractOcrEngine ocrEngine,
                                AnprProperties properties,
+                               ResultAggregator aggregator,
                                ResourceScanner scanner) {
         this.preprocessor = preprocessor;
         this.ocrEngine = ocrEngine;
         this.properties = properties;
+        this.aggregator = aggregator;
         log.info("ANPR resources:\n{}", scanner.describeResources());
     }
 
@@ -58,8 +61,7 @@ public class RecognitionPipeline {
 
         log.debug("Recognized {} candidate hypotheses from {} plate candidates", recognized.size(), candidates.size());
 
-        return recognized.stream()
-                .filter(result -> result.confidence() >= properties.ocr().confidenceThreshold())
-                .max(Comparator.comparingDouble(OcrResult::confidence));
+        Optional<AggregatedResult> best = aggregator.selectBest(recognized, properties.ocr().confidenceThreshold());
+        return best.map(result -> new OcrResult(result.text(), result.confidence()));
     }
 }
