@@ -35,11 +35,13 @@ public class TesseractOcrEngine {
         Path tessData = resolveTessData(properties);
         instance.setDatapath(tessData.toAbsolutePath().toString());
         instance.setLanguage(Optional.ofNullable(properties.ocr().language()).orElse("eng"));
+        String whitelist = Optional.ofNullable(properties.ocr().whitelistPattern()).orElse("");
         if (properties.ocr().enableWhitelist()) {
-            setVariable(instance, "tessedit_char_whitelist", properties.ocr().whitelistPattern());
+            setVariable(instance, "tessedit_char_whitelist", whitelist);
         }
         setVariable(instance, "user_defined_dpi", "300");
-        setVariable(instance, "classify_bln_numeric_mode", "1");
+        String numericMode = shouldForceNumericMode(whitelist) ? "1" : "0";
+        setVariable(instance, "classify_bln_numeric_mode", numericMode);
         setVariable(instance, "preserve_interword_spaces", "1");
         return instance;
     }
@@ -151,5 +153,16 @@ public class TesseractOcrEngine {
     }
 
     public record OcrResult(String text, double confidence) {
+    }
+
+    static boolean shouldForceNumericMode(String whitelist) {
+        if (whitelist == null) {
+            return false;
+        }
+        String trimmed = whitelist.trim();
+        if (trimmed.isEmpty()) {
+            return false;
+        }
+        return trimmed.chars().noneMatch(Character::isLetter);
     }
 }
