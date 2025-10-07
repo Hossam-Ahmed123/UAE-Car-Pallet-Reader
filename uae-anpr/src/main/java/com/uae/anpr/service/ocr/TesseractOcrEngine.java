@@ -1,17 +1,22 @@
 package com.uae.anpr.service.ocr;
 
 import com.uae.anpr.config.AnprProperties;
+import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.OptionalDouble;
 import net.sourceforge.tess4j.ITesseract;
+import net.sourceforge.tess4j.ITessAPI;
 import net.sourceforge.tess4j.Tesseract;
+import net.sourceforge.tess4j.Word;
 import net.sourceforge.tess4j.util.LoadLibs;
 import org.bytedeco.javacpp.BytePointer;
 import org.bytedeco.opencv.global.opencv_imgcodecs;
@@ -51,7 +56,7 @@ public class TesseractOcrEngine {
         return instance;
     }
 
-    private Path resolveTessData(AnprProperties properties) {
+    private static Path resolveTessData(AnprProperties properties) {
         String configuredPath = Optional.ofNullable(properties.ocr().datapath())
                 .map(String::trim)
                 .filter(path -> !path.isEmpty())
@@ -93,7 +98,7 @@ public class TesseractOcrEngine {
             if (normalized.isEmpty()) {
                 return Optional.empty();
             }
-            double confidence = readConfidence();
+            double confidence = readConfidence(temp);
             log.debug("OCR recognized {} with confidence {}", normalized, confidence);
             return Optional.of(new OcrResult(normalized, confidence));
         } catch (IOException ex) {
@@ -113,22 +118,27 @@ public class TesseractOcrEngine {
         }
     }
 
-    private double readConfidence() {
+    private double readConfidence(Path source) {
         try {
-            int meanConfidence = tesseract.getMeanConfidence();
-            if (meanConfidence < 0) {
+            File file = source.toFile();
+            List<Word> words = tesseract.getWords(file, ITessAPI.TessPageIteratorLevel.RIL_WORD);
+            if (words == null || words.isEmpty()) {
                 return 0.0;
             }
-            double scaled = meanConfidence / 100.0;
+            OptionalDouble average = words.stream()
+                    .mapToDouble(Word::getConfidence)
+                    .filter(value -> value >= 0)
+                    .average();
+            if (average.isEmpty()) {
+                return 0.0;
+            }
+            double scaled = average.getAsDouble() / 100.0;
             if (!Double.isFinite(scaled)) {
                 return 0.0;
             }
             return Math.max(0.0, Math.min(1.0, scaled));
-        } catch (UnsupportedOperationException ex) {
-            log.debug("Tesseract mean confidence not available: {}", ex.getMessage());
-            return 0.0;
         } catch (RuntimeException ex) {
-            log.debug("Tesseract mean confidence retrieval failed: {}", ex.getMessage());
+            log.debug("Tesseract confidence retrieval failed: {}", ex.getMessage());
             return 0.0;
         }
     }
@@ -145,7 +155,7 @@ public class TesseractOcrEngine {
         }
     }
 
-    private void setVariable(Tesseract instance, String name, String value) {
+    private static void setVariable(Tesseract instance, String name, String value) {
         Method modernApi = resolveVariableMethod("setVariable");
         Method legacyApi = resolveVariableMethod("setTessVariable");
         Method target = modernApi != null ? modernApi : legacyApi;
@@ -159,7 +169,7 @@ public class TesseractOcrEngine {
         }
     }
 
-    private Method resolveVariableMethod(String name) {
+    private static Method resolveVariableMethod(String name) {
         try {
             return Tesseract.class.getMethod(name, String.class, String.class);
         } catch (NoSuchMethodException ex) {
