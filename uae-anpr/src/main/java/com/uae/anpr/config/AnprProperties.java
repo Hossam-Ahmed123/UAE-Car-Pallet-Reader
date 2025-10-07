@@ -20,6 +20,7 @@ public record AnprProperties(
             String language,
             double confidenceThreshold,
             boolean enableWhitelist,
-            String whitelistPattern) {
+            String whitelistPattern,
+            String datapath) {
     }
 }

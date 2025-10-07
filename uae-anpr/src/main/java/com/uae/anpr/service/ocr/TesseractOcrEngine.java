@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.util.Locale;
 import java.util.Optional;
@@ -31,7 +32,7 @@ public class TesseractOcrEngine {
 
     private ITesseract create(AnprProperties properties) {
         Tesseract instance = new Tesseract();
-        Path tessData = LoadLibs.extractTessResources("tessdata").toPath();
+        Path tessData = resolveTessData(properties);
         instance.setDatapath(tessData.toAbsolutePath().toString());
         instance.setLanguage(Optional.ofNullable(properties.ocr().language()).orElse("eng"));
         if (properties.ocr().enableWhitelist()) {
@@ -41,6 +42,31 @@ public class TesseractOcrEngine {
         setVariable(instance, "classify_bln_numeric_mode", "1");
         setVariable(instance, "preserve_interword_spaces", "1");
         return instance;
+    }
+
+    private Path resolveTessData(AnprProperties properties) {
+        String configuredPath = Optional.ofNullable(properties.ocr().datapath())
+                .map(String::trim)
+                .filter(path -> !path.isEmpty())
+                .orElse(null);
+        if (configuredPath == null) {
+            return LoadLibs.extractTessResources("tessdata").toPath();
+        }
+        try {
+            Path candidate = Path.of(configuredPath);
+            if (Files.exists(candidate) && Files.isDirectory(candidate)) {
+                return candidate;
+            }
+            log.warn(
+                    "Configured Tesseract data path {} does not exist or is not a directory; falling back to bundled tessdata",
+                    candidate);
+        } catch (InvalidPathException ex) {
+            log.warn(
+                    "Configured Tesseract data path {} is invalid: {}. Falling back to bundled tessdata",
+                    configuredPath,
+                    ex.getMessage());
+        }
+        return LoadLibs.extractTessResources("tessdata").toPath();
     }
 
     public Optional<OcrResult> recognize(Mat candidate) {
