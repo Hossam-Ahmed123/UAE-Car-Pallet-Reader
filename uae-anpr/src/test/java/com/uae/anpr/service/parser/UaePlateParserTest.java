@@ -43,6 +43,14 @@ class UaePlateParserTest {
     }
 
     @Test
+    void resolvesCityFromNoisyPrefix() {
+        PlateBreakdown breakdown = parser.parse("TH59744");
+        assertEquals("Sharjah", breakdown.city());
+        assertEquals("TH", breakdown.plateCharacter());
+        assertEquals("59744", breakdown.carNumber());
+    }
+
+    @Test
     void returnsEmptyBreakdownForInvalidInput() {
         PlateBreakdown breakdown = parser.parse("   ");
         assertNull(breakdown.city());
