@@ -4,6 +4,8 @@ import com.uae.anpr.api.dto.RecognitionRequest;
 import com.uae.anpr.api.dto.RecognitionResponse;
 import com.uae.anpr.config.AnprProperties;
 import com.uae.anpr.service.ocr.TesseractOcrEngine.OcrResult;
+import com.uae.anpr.service.parser.UaePlateParser;
+import com.uae.anpr.service.parser.UaePlateParser.PlateBreakdown;
 import com.uae.anpr.service.pipeline.RecognitionPipeline;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -32,10 +34,12 @@ public class OcrController {
 
     private final RecognitionPipeline pipeline;
     private final AnprProperties properties;
+    private final UaePlateParser plateParser;
 
-    public OcrController(RecognitionPipeline pipeline, AnprProperties properties) {
+    public OcrController(RecognitionPipeline pipeline, AnprProperties properties, UaePlateParser plateParser) {
         this.pipeline = pipeline;
         this.properties = properties;
+        this.plateParser = plateParser;
     }
 
     @PostMapping(value = "/recognize", consumes = MediaType.APPLICATION_JSON_VALUE)
@@ -73,15 +77,22 @@ public class OcrController {
 
     @ExceptionHandler({IllegalArgumentException.class, IllegalStateException.class})
     public ResponseEntity<RecognitionResponse> handleIllegalArgument(RuntimeException ex) {
-        return ResponseEntity.badRequest().body(new RecognitionResponse(null, 0.0, false));
+        return ResponseEntity.badRequest().body(new RecognitionResponse(null, null, null, null, 0.0, false));
     }
 
     private RecognitionResponse toResponse(Optional<OcrResult> result) {
         if (result.isEmpty()) {
-            return new RecognitionResponse(null, 0.0, false);
+            return new RecognitionResponse(null, null, null, null, 0.0, false);
         }
         OcrResult ocrResult = result.get();
         boolean accepted = ocrResult.confidence() >= properties.ocr().confidenceThreshold();
-        return new RecognitionResponse(ocrResult.text(), ocrResult.confidence(), accepted);
+        PlateBreakdown breakdown = plateParser.parse(ocrResult.text());
+        return new RecognitionResponse(
+                ocrResult.text(),
+                breakdown.city(),
+                breakdown.plateCharacter(),
+                breakdown.carNumber(),
+                ocrResult.confidence(),
+                accepted);
     }
 }
