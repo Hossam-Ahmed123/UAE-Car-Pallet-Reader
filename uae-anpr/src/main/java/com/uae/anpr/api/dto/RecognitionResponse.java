@@ -9,6 +9,8 @@ public record RecognitionResponse(
         String city,
         @Schema(description = "Alphabetic classification character(s) printed on the plate")
         String plateCharacter,
+        @Schema(description = "Numeric component of the plate")
+        String carNumber,
         @Schema(description = "Confidence score emitted by OCR")
         double confidence,
         @Schema(description = "Whether the detection reached the configured acceptance threshold")

@@ -6,9 +6,25 @@
   <component name="ChangeListManager">
     <list default="true" id="0ba575c9-4598-4946-bc2c-b54486b35a19" name="Changes" comment="Merge remote-tracking branch 'origin/Master' into Master">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/uae/anpr/api/OcrController.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/uae/anpr/api/OcrController.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/com/uae/anpr/api/dto/RecognitionResponse.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/uae/anpr/api/dto/RecognitionResponse.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/resources/application.yml" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/resources/application.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/target/classes/com/uae/anpr/UaeAnprApplication.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/target/classes/com/uae/anpr/api/OcrController.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/target/classes/com/uae/anpr/config/AnprProperties$OcrProperties.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/target/classes/com/uae/anpr/config/AnprProperties$ResourceSet.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/target/classes/com/uae/anpr/config/AnprProperties.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/target/classes/com/uae/anpr/service/ResourceScanner.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/target/classes/com/uae/anpr/service/ocr/TesseractOcrEngine$OcrResult.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/target/classes/com/uae/anpr/service/ocr/TesseractOcrEngine.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/target/classes/com/uae/anpr/service/parser/UaePlateParser$CityPattern.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/target/classes/com/uae/anpr/service/parser/UaePlateParser$FuzzyCandidate.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/target/classes/com/uae/anpr/service/parser/UaePlateParser$PlateBreakdown.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/target/classes/com/uae/anpr/service/parser/UaePlateParser.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/target/classes/com/uae/anpr/service/pipeline/RecognitionPipeline.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/target/classes/com/uae/anpr/service/pipeline/ResultAggregator$AggregatedResult.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/target/classes/com/uae/anpr/service/pipeline/ResultAggregator$CandidateHypothesis.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/target/classes/com/uae/anpr/service/pipeline/ResultAggregator.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/target/classes/com/uae/anpr/service/preprocessing/ImagePreprocessor.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/target/test-classes/com/uae/anpr/service/parser/UaePlateParserTest.class" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -35,24 +51,24 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "RequestMappingsPanelOrder0": "0",
-    "RequestMappingsPanelOrder1": "1",
-    "RequestMappingsPanelWidth0": "75",
-    "RequestMappingsPanelWidth1": "75",
-    "RunOnceActivity.OpenProjectViewOnStart": "true",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "SHARE_PROJECT_CONFIGURATION_FILES": "true",
-    "WebServerToolWindowFactoryState": "false",
-    "last_opened_file_path": "E:/pnr/uae-anpr",
-    "nodejs_package_manager_path": "npm",
-    "project.structure.last.edited": "Project",
-    "project.structure.proportion": "0.0",
-    "project.structure.side.proportion": "0.0",
-    "spring.configuration.checksum": "cae71a1ef58f72ae3e33d8f07592ede3"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;RequestMappingsPanelOrder0&quot;: &quot;0&quot;,
+    &quot;RequestMappingsPanelOrder1&quot;: &quot;1&quot;,
+    &quot;RequestMappingsPanelWidth0&quot;: &quot;75&quot;,
+    &quot;RequestMappingsPanelWidth1&quot;: &quot;75&quot;,
+    &quot;RunOnceActivity.OpenProjectViewOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;SHARE_PROJECT_CONFIGURATION_FILES&quot;: &quot;true&quot;,
+    &quot;WebServerToolWindowFactoryState&quot;: &quot;false&quot;,
+    &quot;last_opened_file_path&quot;: &quot;E:/pnr/uae-anpr&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;project.structure.last.edited&quot;: &quot;Project&quot;,
+    &quot;project.structure.proportion&quot;: &quot;0.0&quot;,
+    &quot;project.structure.side.proportion&quot;: &quot;0.0&quot;,
+    &quot;spring.configuration.checksum&quot;: &quot;cae71a1ef58f72ae3e33d8f07592ede3&quot;
   }
-}]]></component>
+}</component>
   <component name="RunDashboard">
     <option name="configurationTypes">
       <set>
@@ -155,20 +171,6 @@
       <option name="launchJavascriptDebuger" value="false" />
       <method v="2" />
     </configuration>
-    <configuration name="AnprApplication (1)" type="SpringBootApplicationConfigurationType" factoryName="Spring Boot">
-      <module name="uae-anpr" />
-      <option name="SPRING_BOOT_MAIN_CLASS" value="com.example.anpr.AnprApplication" />
-      <method v="2">
-        <option name="Make" enabled="true" />
-      </method>
-    </configuration>
-    <configuration name="AnprApplication" type="SpringBootApplicationConfigurationType" factoryName="Spring Boot">
-      <module name="uae-ocr-anpr" />
-      <option name="SPRING_BOOT_MAIN_CLASS" value="com.example.anpr.AnprApplication" />
-      <method v="2">
-        <option name="Make" enabled="true" />
-      </method>
-    </configuration>
     <configuration name="Application" type="SpringBootApplicationConfigurationType" factoryName="Spring Boot">
       <module name="uae-anpr" />
       <option name="SPRING_BOOT_MAIN_CLASS" value="com.uae.anpr.Application" />
@@ -212,7 +214,8 @@
       <workItem from="1759585014940" duration="3837000" />
       <workItem from="1759601844281" duration="11949000" />
       <workItem from="1759736244096" duration="9631000" />
-      <workItem from="1759808391014" duration="6792000" />
+      <workItem from="1759808391014" duration="7660000" />
+      <workItem from="1759817252451" duration="3153000" />
     </task>
     <task id="LOCAL-00001" summary="enhancement">
       <created>1759736401946</created>
@@ -249,7 +252,21 @@
       <option name="project" value="LOCAL" />
       <updated>1759809490330</updated>
     </task>
-    <option name="localTasksCounter" value="6" />
+    <task id="LOCAL-00006" summary="Merge remote-tracking branch 'origin/Master' into Master">
+      <created>1759816094483</created>
+      <option name="number" value="00006" />
+      <option name="presentableId" value="LOCAL-00006" />
+      <option name="project" value="LOCAL" />
+      <updated>1759816094483</updated>
+    </task>
+    <task id="LOCAL-00007" summary="Merge remote-tracking branch 'origin/Master' into Master">
+      <created>1759816131565</created>
+      <option name="number" value="00007" />
+      <option name="presentableId" value="LOCAL-00007" />
+      <option name="project" value="LOCAL" />
+      <updated>1759816131565</updated>
+    </task>
+    <option name="localTasksCounter" value="8" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">

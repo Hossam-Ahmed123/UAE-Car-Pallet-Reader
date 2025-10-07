@@ -77,12 +77,12 @@ public class OcrController {
 
     @ExceptionHandler({IllegalArgumentException.class, IllegalStateException.class})
     public ResponseEntity<RecognitionResponse> handleIllegalArgument(RuntimeException ex) {
-        return ResponseEntity.badRequest().body(new RecognitionResponse(null, null, null,  0.0, false));
+        return ResponseEntity.badRequest().body(new RecognitionResponse(null, null, null,  null,0.0, false));
     }
 
     RecognitionResponse toResponse(Optional<OcrResult> result) {
         if (result.isEmpty()) {
-            return new RecognitionResponse(null, null, null, 0.0, false);
+            return new RecognitionResponse(null, null, null,null, 0.0, false);
         }
         OcrResult ocrResult = result.get();
         boolean accepted = ocrResult.confidence() >= properties.ocr().confidenceThreshold();
@@ -95,6 +95,7 @@ public class OcrController {
                 plateNumber,
                 breakdown.city(),
                 breakdown.plateCharacter(),
+                breakdown.carNumber(),
 
                 ocrResult.confidence(),
                 accepted);
