@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.awt.image.BufferedImage;
 import java.io.File;
 import java.util.List;
 import java.util.Optional;
@@ -22,10 +23,11 @@ class TesseractOcrEngineTest {
     @Test
     void usesWordConfidenceFromTesseract() throws Exception {
         ITesseract tess = Mockito.mock(ITesseract.class);
-        Mockito.when(tess.doOCR(ArgumentMatchers.any())).thenReturn("abc123");
+        Mockito.when(tess.doOCR(ArgumentMatchers.any(File.class))).thenReturn("abc123");
         Word word = Mockito.mock(Word.class);
-        Mockito.when(word.getConfidence()).thenReturn(73);
-        Mockito.when(tess.getWords(ArgumentMatchers.any(File.class), ArgumentMatchers.anyInt()))
+        Mockito.when(word.getConfidence()).thenReturn(73f);
+        Mockito.when(tess.getWords(
+                        ArgumentMatchers.any(BufferedImage.class), ArgumentMatchers.anyInt()))
                 .thenReturn(List.of(word));
 
         TesseractOcrEngine engine = new TesseractOcrEngine(tess);
@@ -41,8 +43,9 @@ class TesseractOcrEngineTest {
     @Test
     void returnsZeroConfidenceWhenWordConfidenceUnavailable() throws Exception {
         ITesseract tess = Mockito.mock(ITesseract.class);
-        Mockito.when(tess.doOCR(ArgumentMatchers.any())).thenReturn("DXB");
-        Mockito.when(tess.getWords(ArgumentMatchers.any(File.class), ArgumentMatchers.anyInt()))
+        Mockito.when(tess.doOCR(ArgumentMatchers.any(File.class))).thenReturn("DXB");
+        Mockito.when(tess.getWords(
+                        ArgumentMatchers.any(BufferedImage.class), ArgumentMatchers.anyInt()))
                 .thenThrow(new UnsupportedOperationException("no confidence"));
 
         TesseractOcrEngine engine = new TesseractOcrEngine(tess);
