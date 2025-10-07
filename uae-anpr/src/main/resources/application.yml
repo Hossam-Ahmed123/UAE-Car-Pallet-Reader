@@ -1,14 +1,26 @@
 server:
   port: 9090
 
-ocr:
-  tessdataPath: ${TESSDATA_PREFIX:${user.dir}/tessdata}
-  lang: eng+ara
-  whitelist: "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZابجدھوزحطيكلمنسعفصقرشتثخذضظغدبيأبوظبيالشارقةعجمانرأسالخيمةالفجيرةامالقيوين"
-
 spring:
   servlet:
     multipart:
       max-file-size: 10MB
       max-request-size: 10MB
 
+anpr:
+  resources:
+    alphabets: alphabets/**/*
+    neural-networks: neuralnetworks/**/*
+    configs: '*.xml'
+    enhancement-kernels:
+      - dtd/**/*.dtd
+      - reportgenerator/**/*
+  ocr:
+    language: eng
+    confidence-threshold: 0.9
+    enable-whitelist: true
+    whitelist-pattern: "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+logging:
+  level:
+    com.uae.anpr: DEBUG
