@@ -5,6 +5,7 @@ import com.uae.anpr.service.ResourceScanner;
 import com.uae.anpr.service.ocr.TesseractOcrEngine;
 import com.uae.anpr.service.ocr.TesseractOcrEngine.OcrResult;
 import com.uae.anpr.service.preprocessing.ImagePreprocessor;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
@@ -37,11 +38,27 @@ public class RecognitionPipeline {
         Mat enhanced = preprocessor.enhanceContrast(normalized);
         Mat binary = preprocessor.binarize(enhanced);
         List<Mat> candidates = preprocessor.extractCandidates(binary, normalized);
+        List<OcrResult> recognized = new ArrayList<>();
 
-        return candidates.stream()
-                .map(ocrEngine::recognize)
-                .filter(Optional::isPresent)
-                .map(Optional::get)
+        for (Mat candidate : candidates) {
+            preprocessor.generateOcrVariants(candidate).stream()
+                    .map(ocrEngine::recognize)
+                    .filter(Optional::isPresent)
+                    .map(Optional::get)
+                    .forEach(recognized::add);
+        }
+
+        if (recognized.isEmpty()) {
+            preprocessor.generateOcrVariants(normalized).stream()
+                    .map(ocrEngine::recognize)
+                    .filter(Optional::isPresent)
+                    .map(Optional::get)
+                    .forEach(recognized::add);
+        }
+
+        log.debug("Recognized {} candidate hypotheses from {} plate candidates", recognized.size(), candidates.size());
+
+        return recognized.stream()
                 .filter(result -> result.confidence() >= properties.ocr().confidenceThreshold())
                 .max(Comparator.comparingDouble(OcrResult::confidence));
     }
