@@ -85,8 +85,10 @@ public class OcrController {
             return new RecognitionResponse(null, null, null, null, 0.0, false);
         }
         OcrResult ocrResult = result.get();
-        boolean accepted = ocrResult.confidence() >= properties.ocr().confidenceThreshold();
         PlateBreakdown breakdown = plateParser.parse(ocrResult.text());
+        boolean hasClassification = breakdown.plateCharacter() != null && !breakdown.plateCharacter().isBlank();
+        boolean hasDigits = breakdown.carNumber() != null && !breakdown.carNumber().isBlank();
+        boolean accepted = ocrResult.confidence() >= properties.ocr().confidenceThreshold() && hasClassification && hasDigits;
         return new RecognitionResponse(
                 ocrResult.text(),
                 breakdown.city(),
