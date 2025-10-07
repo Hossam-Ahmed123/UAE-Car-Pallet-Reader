@@ -8,6 +8,7 @@ import java.util.Optional;
 import net.sourceforge.tess4j.ITesseract;
 import net.sourceforge.tess4j.Tesseract;
 import net.sourceforge.tess4j.util.LoadLibs;
+import org.bytedeco.javacpp.BytePointer;
 import org.bytedeco.opencv.global.opencv_imgcodecs;
 import org.bytedeco.opencv.opencv_core.Mat;
 import org.slf4j.Logger;
@@ -27,15 +28,15 @@ public class TesseractOcrEngine {
 
     private ITesseract create(AnprProperties properties) {
         Tesseract instance = new Tesseract();
-        Path tessData = LoadLibs.extractTessResources("tessdata");
+        Path tessData = LoadLibs.extractTessResources("tessdata").toPath();
         instance.setDatapath(tessData.toAbsolutePath().toString());
         instance.setLanguage(Optional.ofNullable(properties.ocr().language()).orElse("eng"));
         if (properties.ocr().enableWhitelist()) {
-            instance.setTessVariable("tessedit_char_whitelist", properties.ocr().whitelistPattern());
+            instance.setVariable("tessedit_char_whitelist", properties.ocr().whitelistPattern());
         }
-        instance.setTessVariable("user_defined_dpi", "300");
-        instance.setTessVariable("classify_bln_numeric_mode", "1");
-        instance.setTessVariable("preserve_interword_spaces", "1");
+        instance.setVariable("user_defined_dpi", "300");
+        instance.setVariable("classify_bln_numeric_mode", "1");
+        instance.setVariable("preserve_interword_spaces", "1");
         return instance;
     }
 
@@ -79,10 +80,11 @@ public class TesseractOcrEngine {
     }
 
     private byte[] encode(Mat candidate) {
-        org.bytedeco.opencv.opencv_core.MatOfByte buffer = new org.bytedeco.opencv.opencv_core.MatOfByte();
+        BytePointer buffer = new BytePointer();
         opencv_imgcodecs.imencode(".png", candidate, buffer);
-        byte[] bytes = new byte[(int) buffer.total() * buffer.channels()];
-        buffer.data().get(bytes);
+        byte[] bytes = new byte[(int) buffer.limit()];
+        buffer.get(bytes);
+        buffer.deallocate();
         return bytes;
     }
 
