@@ -3,10 +3,12 @@ package com.uae.anpr.service.pipeline;
 import com.uae.anpr.service.ocr.TesseractOcrEngine.OcrResult;
 import com.uae.anpr.service.parser.UaePlateParser;
 import com.uae.anpr.service.parser.UaePlateParser.PlateBreakdown;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -47,20 +49,37 @@ public class ResultAggregator {
             hypothesis.observe(result.confidence());
         }
 
-        return hypotheses.values().stream()
+        List<AggregatedResult> candidates = hypotheses.values().stream()
                 .map(CandidateHypothesis::finalizeResult)
-                .filter(Optional::isPresent)
-                .map(Optional::get)
+                .flatMap(Optional::stream)
+                .collect(Collectors.toList());
+        if (candidates.isEmpty()) {
+            return Optional.empty();
+        }
+
+        Comparator<AggregatedResult> byScore = Comparator.comparingDouble(AggregatedResult::score);
+        Optional<AggregatedResult> confident = candidates.stream()
                 .filter(candidate -> candidate.confidence() >= threshold)
-                .peek(candidate -> log.debug(
-                        "Aggregated candidate {} with confidence {} (occurrences: {}, city: {}, class: {}, digits: {})",
-                        candidate.text(),
-                        candidate.confidence(),
-                        candidate.occurrences(),
-                        candidate.breakdown().city(),
-                        candidate.breakdown().plateCharacter(),
-                        candidate.breakdown().carNumber()))
-                .max((left, right) -> Double.compare(left.score(), right.score()));
+                .max(byScore);
+
+        Optional<AggregatedResult> best = confident.isPresent()
+                ? confident
+                : candidates.stream().max(byScore);
+
+        best.ifPresent(candidate -> {
+            boolean meetsThreshold = candidate.confidence() >= threshold;
+            log.debug(
+                    "Aggregated candidate {} with confidence {} (occurrences: {}, city: {}, class: {}, digits: {}, meetsThreshold: {})",
+                    candidate.text(),
+                    candidate.confidence(),
+                    candidate.occurrences(),
+                    candidate.breakdown().city(),
+                    candidate.breakdown().plateCharacter(),
+                    candidate.breakdown().carNumber(),
+                    meetsThreshold);
+        });
+
+        return best;
     }
 
     public record AggregatedResult(String text, double confidence, double score, int occurrences,
