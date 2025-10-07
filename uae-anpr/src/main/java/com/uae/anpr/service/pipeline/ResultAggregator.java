@@ -47,6 +47,8 @@ public class ResultAggregator {
             hypothesis.observe(result.confidence());
         }
 
+        augmentWithLayoutCombinations(hypotheses);
+
         return hypotheses.values().stream()
                 .map(CandidateHypothesis::finalizeResult)
                 .filter(Optional::isPresent)
@@ -67,6 +69,63 @@ public class ResultAggregator {
             PlateBreakdown breakdown) {
     }
 
+    private void augmentWithLayoutCombinations(Map<String, CandidateHypothesis> hypotheses) {
+        List<CandidateHypothesis> digitsOnly = hypotheses.values().stream()
+                .filter(candidate -> candidate.containsDigits() && !candidate.containsLetters())
+                .toList();
+        List<CandidateHypothesis> lettersOnly = hypotheses.values().stream()
+                .filter(candidate -> candidate.containsLetters() && !candidate.containsDigits())
+                .filter(candidate -> candidate.text().length() <= 3)
+                .toList();
+
+        for (CandidateHypothesis digits : digitsOnly) {
+            for (CandidateHypothesis letters : lettersOnly) {
+                double combinedConfidence = combineConfidence(digits, letters);
+                if (combinedConfidence <= 0.0) {
+                    continue;
+                }
+                maybeAddCombinedHypothesis(hypotheses, digits, letters, digits.text() + letters.text(),
+                        combinedConfidence);
+                maybeAddCombinedHypothesis(hypotheses, digits, letters, letters.text() + digits.text(),
+                        combinedConfidence);
+            }
+        }
+    }
+
+    private double combineConfidence(CandidateHypothesis digits, CandidateHypothesis letters) {
+        double digitsConfidence = Math.max(digits.maxConfidence(), digits.averageConfidence());
+        double lettersConfidence = Math.max(letters.maxConfidence(), letters.averageConfidence());
+        if (digitsConfidence <= 0.0 || lettersConfidence <= 0.0) {
+            return 0.0;
+        }
+        double base = Math.min(digitsConfidence, lettersConfidence);
+        double balance = Math.abs(digitsConfidence - lettersConfidence) <= 0.1 ? 0.02 : 0.0;
+        double occurrencesBonus = Math.min(0.02, 0.01 * Math.min(digits.occurrences(), letters.occurrences()));
+        return Math.min(0.999, base + balance + occurrencesBonus);
+    }
+
+    private void maybeAddCombinedHypothesis(Map<String, CandidateHypothesis> hypotheses,
+            CandidateHypothesis digits,
+            CandidateHypothesis letters,
+            String combinedText,
+            double combinedConfidence) {
+        if (combinedText == null) {
+            return;
+        }
+        String normalized = combinedText.replaceAll("[^A-Z0-9]", "");
+        if (normalized.isBlank() || hypotheses.containsKey(normalized)) {
+            return;
+        }
+
+        CandidateHypothesis merged = new CandidateHypothesis(normalized, parser.parse(normalized));
+        int supportingObservations = Math.max(1, Math.min(digits.occurrences(), letters.occurrences()));
+        double adjustedConfidence = Math.min(0.999, combinedConfidence + 0.015);
+        for (int i = 0; i < supportingObservations; i++) {
+            merged.observe(adjustedConfidence);
+        }
+        hypotheses.put(normalized, merged);
+    }
+
     private static final class CandidateHypothesis {
 
         private final String text;
@@ -84,6 +143,29 @@ public class ResultAggregator {
             occurrences++;
             sumConfidence += Math.max(0.0, confidence);
             maxConfidence = Math.max(maxConfidence, Math.max(0.0, confidence));
+        }
+
+        private String text() {
+            return text;
+        }
+
+        private PlateBreakdown breakdown() {
+            return breakdown;
+        }
+
+        private int occurrences() {
+            return occurrences;
+        }
+
+        private double maxConfidence() {
+            return maxConfidence;
+        }
+
+        private double averageConfidence() {
+            if (occurrences == 0) {
+                return 0.0;
+            }
+            return sumConfidence / occurrences;
         }
 
         private Optional<AggregatedResult> finalizeResult() {
