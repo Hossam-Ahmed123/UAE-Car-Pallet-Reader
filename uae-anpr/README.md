@@ -23,6 +23,21 @@ The recognition flow executed for both API endpoints is summarised below:
 
    The service starts on `http://localhost:8080`.
 
+### Configuring Tesseract data files
+
+By default the OCR engine extracts bundled `tessdata` resources provided by Tess4J. If you already have
+Tesseract installed on your system, you can point the service at your local trained data directory by
+setting the `anpr.ocr.datapath` property, for example:
+
+```yaml
+anpr:
+  ocr:
+    datapath: "C:/Program Files/Tesseract-OCR/tessdata"
+```
+
+When the configured directory is missing or invalid the service logs a warning and falls back to the
+embedded resources.
+
 ## API usage
 
 Both endpoints respond with the same JSON payload:
