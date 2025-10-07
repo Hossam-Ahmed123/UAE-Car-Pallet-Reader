@@ -2,6 +2,7 @@ package com.uae.anpr.service.ocr;
 
 import com.uae.anpr.config.AnprProperties;
 import java.io.File;
+import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -13,6 +14,7 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalDouble;
+import javax.imageio.ImageIO;
 import net.sourceforge.tess4j.ITesseract;
 import net.sourceforge.tess4j.ITessAPI;
 import net.sourceforge.tess4j.Tesseract;
@@ -121,7 +123,11 @@ public class TesseractOcrEngine {
     private double readConfidence(Path source) {
         try {
             File file = source.toFile();
-            List<Word> words = tesseract.getWords(file, ITessAPI.TessPageIteratorLevel.RIL_WORD);
+            BufferedImage image = ImageIO.read(file);
+            if (image == null) {
+                return 0.0;
+            }
+            List<Word> words = tesseract.getWords(image, ITessAPI.TessPageIteratorLevel.RIL_WORD);
             if (words == null || words.isEmpty()) {
                 return 0.0;
             }
@@ -137,6 +143,9 @@ public class TesseractOcrEngine {
                 return 0.0;
             }
             return Math.max(0.0, Math.min(1.0, scaled));
+        } catch (IOException ex) {
+            log.debug("Unable to read OCR source image for confidence: {}", ex.getMessage());
+            return 0.0;
         } catch (RuntimeException ex) {
             log.debug("Tesseract confidence retrieval failed: {}", ex.getMessage());
             return 0.0;
