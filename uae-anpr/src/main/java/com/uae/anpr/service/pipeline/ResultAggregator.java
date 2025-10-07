@@ -91,7 +91,7 @@ public class ResultAggregator {
                 return Optional.empty();
             }
             double aggregatedConfidence = clamp(computeAggregatedConfidence());
-            double score = aggregatedConfidence + consensusBonus();
+            double score = aggregatedConfidence + consensusBonus() + structurePreference();
             return Optional.of(new AggregatedResult(text, aggregatedConfidence, score, occurrences, breakdown));
         }
 
@@ -142,15 +142,34 @@ public class ResultAggregator {
             }
             String classification = breakdown.plateCharacter();
             if (classification == null || classification.isBlank()) {
-                penalty += 0.04;
+                penalty += 0.07;
             }
             if (!containsLetters()) {
-                penalty += 0.05;
+                penalty += 0.08;
             }
             if (text.length() < 4) {
                 penalty += 0.04;
             }
             return penalty;
+        }
+
+        private double structurePreference() {
+            double preference = 0.0;
+            String classification = breakdown.plateCharacter();
+            if (classification != null && !classification.isBlank()) {
+                preference += 0.05;
+                if (classification.length() <= 2) {
+                    preference += 0.01;
+                }
+            } else {
+                preference -= 0.04;
+            }
+            if (containsLetters()) {
+                preference += 0.01;
+            } else {
+                preference -= 0.03;
+            }
+            return preference;
         }
 
         private boolean containsDigits() {
