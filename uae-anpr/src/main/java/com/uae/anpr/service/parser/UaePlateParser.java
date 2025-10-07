@@ -108,12 +108,87 @@ public class UaePlateParser {
             if (scopedMatch.isPresent()) {
                 return scopedMatch.get();
             }
+
+            CityPattern fuzzy = resolveCityFuzzy(scopedLetters);
+            if (fuzzy != null) {
+                return fuzzy;
+            }
         }
 
         return CITY_PATTERNS.stream()
                 .filter(pattern -> normalizedPlate.contains(pattern.code()))
                 .max(Comparator.comparingInt(pattern -> pattern.code().length()))
                 .orElse(null);
+    }
+
+    private CityPattern resolveCityFuzzy(String scopedLetters) {
+        if (scopedLetters.length() < 2) {
+            return null;
+        }
+
+        return CITY_PATTERNS.stream()
+                .map(pattern -> new FuzzyCandidate(pattern, fuzzyDistance(scopedLetters, pattern.code())))
+                .filter(candidate -> candidate.distance <= 1)
+                .min(Comparator
+                        .comparingInt(FuzzyCandidate::distance)
+                        .thenComparing((FuzzyCandidate candidate) -> candidate.pattern.code().length(),
+                                Comparator.reverseOrder()))
+                .map(FuzzyCandidate::pattern)
+                .orElse(null);
+    }
+
+    private int fuzzyDistance(String letters, String patternCode) {
+        int patternLength = patternCode.length();
+        int lettersLength = letters.length();
+        int startLength = Math.max(2, Math.min(lettersLength - 1, patternLength));
+        int endLength = Math.max(2, Math.min(lettersLength + 1, patternLength));
+        if (startLength > endLength) {
+            startLength = endLength;
+        }
+
+        int best = Integer.MAX_VALUE;
+        for (int length = startLength; length <= endLength; length++) {
+            String patternPrefix = patternCode.substring(0, length);
+            int distance = levenshteinDistance(letters, patternPrefix);
+            if (distance < best) {
+                best = distance;
+            }
+        }
+
+        return best;
+    }
+
+    private int levenshteinDistance(String left, String right) {
+        int leftLength = left.length();
+        int rightLength = right.length();
+        if (leftLength == 0) {
+            return rightLength;
+        }
+        if (rightLength == 0) {
+            return leftLength;
+        }
+
+        int[] previous = new int[rightLength + 1];
+        int[] current = new int[rightLength + 1];
+
+        for (int j = 0; j <= rightLength; j++) {
+            previous[j] = j;
+        }
+
+        for (int i = 1; i <= leftLength; i++) {
+            current[0] = i;
+            for (int j = 1; j <= rightLength; j++) {
+                int cost = left.charAt(i - 1) == right.charAt(j - 1) ? 0 : 1;
+                current[j] = Math.min(
+                        Math.min(current[j - 1] + 1, previous[j] + 1),
+                        previous[j - 1] + cost);
+            }
+            int[] swap = previous;
+            previous = current;
+            current = swap;
+        }
+
+        return previous[rightLength];
     }
 
     private int indexOfFirstDigit(String value) {
@@ -135,6 +210,9 @@ public class UaePlateParser {
     }
 
     private record CityPattern(String code, String city) {
+    }
+
+    private record FuzzyCandidate(CityPattern pattern, int distance) {
     }
 
     public record PlateBreakdown(String city, String plateCharacter, String carNumber) {
