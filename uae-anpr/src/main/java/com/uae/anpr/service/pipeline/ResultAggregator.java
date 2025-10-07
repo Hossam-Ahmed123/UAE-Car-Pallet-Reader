@@ -140,6 +140,13 @@ public class ResultAggregator {
             if (!containsDigits()) {
                 penalty += 0.08;
             }
+            String classification = breakdown.plateCharacter();
+            if (classification == null || classification.isBlank()) {
+                penalty += 0.04;
+            }
+            if (!containsLetters()) {
+                penalty += 0.05;
+            }
             if (text.length() < 4) {
                 penalty += 0.04;
             }
